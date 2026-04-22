@@ -1,210 +1,233 @@
-# Recovery Rhythm Demo Plan (Split-Screen Recording)
+# Recovery Rhythm — Demonstration script (split-screen, Eric Ng)
 
-This guide is designed for your coursework video demonstration.
-
----
-
-## 1. Recording Setup
-
-Use two browser windows side-by-side:
-
-- **Left window:** Clinician portal (`clinician.html`) logged in as hospital personnel.
-- **Right window:** Patient portal (`patient.html`) logged in as Eric Ng.
-
-Suggested opening line:
-
-> "This is a proof-of-concept showing how daily patient logs flow through an event-driven cloud architecture and appear in near real-time for clinicians."
+This guide matches the **current implementation** (`RiskEngine`, `BaselineEngine`, `SignalService`, static UIs). Read **§Critical engine rules** first — without them, scores can look “wrong” on camera.
 
 ---
 
-## 2. Login and Initial State
+## Critical engine rules (audit — do not skip)
 
-1. Open `http://localhost:8080/login.html` in both windows.
-2. Left login:
-   - Email: `clinician@rr.nhs.uk`
-   - Password: `demo123`
-3. Right login:
-   - Email: `eric@patient.com`
-   - Password: `demo123`
-4. In left window, select **Eric Ng** from patient list.
+### 1) Risk uses the **real calendar** for its window
 
-Narration:
+`RiskEngine` loads `DailySignalLog` rows with `logDate` in **`[LocalDate.now() minus 7 days, LocalDate.now()]`** (inclusive).  
 
-> "Eric starts as a fresh patient profile. The clinician side auto-refreshes every 5 seconds, so any patient-side check-in should propagate quickly."
+- If you pick a **simulated** date that is **more than 7 days before real “today”**, that day **is not in the next assessment** — the score can ignore it completely.  
+- **Demo rule:** work **back from today** on the real machine. Example: if today is **2026-04-22**, use **Day 1 = 2026-04-18**, **Day 2 = 04-19**, …, **Day 5 = 04-22** (five **distinct** days, all within the 7-day window). Do **not** use arbitrary 2023 dates on a 2026 clock.
 
----
+### 2) A **baseline snapshot** is required for “vs baseline” factors
 
-## 3. Why Date Selection Exists in the Demo
+- Creating Eric **does not** call `POST /baseline/recalculate`. The **clinician UI** only calls `POST /risk/recalculate` (**Run Assessment**).  
+- If no active `BaselineSnapshot` exists, `RiskEngine` still runs, but most **comparative** factors are skipped (`baseline == null` branches). In practice, Eric’s first assessments can look **flat** or odd until a baseline is built.  
+- **After you have at least 3 daily logs** (see `minimum-days-required` in `application.yml`), run **once**:
 
-Say this explicitly in your video:
+```http
+POST http://localhost:8080/api/users/{USER_ID}/baseline/recalculate
+```
 
-> "The date picker is included for proof-of-concept demonstration so I can simulate multiple days quickly. In real deployment, this would usually be one real check-in per calendar day, with reminders and stricter time logic."
+**Get `USER_ID`:** from the JSON response when you create the patient (Network tab), or from `GET /api/users`. Then **Run Assessment** again.
 
----
+**Windows PowerShell example** (replace the UUID):
 
-## 4. Day-by-Day Script (Day 1 to Day 5)
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/users/00000000-0000-0000-0000-000000000000/baseline/recalculate"
+```
 
-Each day below includes:
+**curl** (Git Bash / WSL):
 
-- what to enter on patient side,
-- expected clinician-side effect,
-- and what to explain about technology flow.
+```bash
+curl -s -X POST "http://localhost:8080/api/users/00000000-0000-0000-0000-000000000000/baseline/recalculate"
+```
 
-Use the date picker on the right window and submit one day at a time.
+### 3) **Verified** evidence vs risk
 
-### Day 1 (Healthy Baseline Start)
+For each signal type, a “yes” counts in risk when the day is **fully verified** *or* there is **≥1** `APPROVED` evidence for that type on that log (`RiskEngine.isEffectiveClaim`). **Pending** uploads do not validate the claim. Approve in **Evidence review queue** before you trust the score.
 
-Patient inputs:
+### 4) “Re-engagement bonus” uses **real yesterday**
 
-- Morning check-in: **Yes**
-- Medication: **Yes**
-- Meal logged: **Yes**
-- Activity: **Yes**
-- Evening check-in: **Yes**
-- Appointment scheduled: **No**
-- Sleep: **11:00 PM**
-- Notes: "Felt okay, followed routine."
+`RiskEngine` looks for a log on **`LocalDate.now().minusDays(1)`** (real calendar), not your narrative “Day 4”. A pure backdated demo may never trigger that bonus. Say *“in production, yesterday’s engagement would…”* if asked.
 
-What to explain on clinician side:
+### 5) **Same day** re-submit merges OR-logic
 
-- score should be low/stable trend,
-- first signal appears in recent history,
-- baseline-building behavior begins.
+`SignalService` **OR**s new booleans with existing for the same `logDate`. You cannot “turn off” a prior true through the same UI without a different API. Use **one submit per date** in the video.
 
-Technology explanation:
+### 6) Baseline from logs vs risk from effective claims
 
-- API stores signal in **PostgreSQL**,
-- streak/rolling counters update in **Redis**,
-- risk assessment event emitted to **Kafka**,
-- summary endpoint refreshes in clinician UI.
-
-### Day 2 (Still Stable)
-
-Patient inputs:
-
-- Morning: **Yes**
-- Medication: **Yes**
-- Meal: **Yes**
-- Activity: **Yes**
-- Evening: **Yes**
-- Appointment scheduled: **Yes**
-- Appointment attended: **Yes**
-- Sleep: **10:00 PM**
-- Notes: "Routine maintained, attended appointment."
-
-What to explain on clinician side:
-
-- stable pattern continues,
-- history now has two logged days,
-- baseline confidence improves.
-
-Technology explanation:
-
-- additional relational records written in **PostgreSQL**,
-- appointment adherence contributes to risk context,
-- clinician dashboard updates from refreshed `/recovery-summary`.
-
-### Day 3 (Slight Deterioration Starts)
-
-Patient inputs:
-
-- Morning: **No**
-- Medication: **Yes**
-- Meal: **Yes**
-- Activity: **No**
-- Evening: **No**
-- Appointment scheduled: **No**
-- Sleep: **1:00 AM**
-- Notes: "Felt tired and skipped activity."
-
-What to explain on clinician side:
-
-- risk should rise toward drifting,
-- factors likely mention morning/activity/sleep drift,
-- dashboard now shows mixed green/red signal pattern.
-
-Technology explanation:
-
-- changed behavior increases feature deltas vs baseline,
-- **RiskEngine** computes explainable contributing factors,
-- if threshold crossed, intervention job may be queued to **RabbitMQ**.
-
-### Day 4 (Noticeably Worse)
-
-Patient inputs:
-
-- Morning: **No**
-- Medication: **No**
-- Meal: **No**
-- Activity: **No**
-- Evening: **No**
-- Appointment scheduled: **Yes**
-- Appointment attended: **No**
-- Sleep: **2:00 AM**
-- Notes: "Very difficult day, stayed in bed."
-
-What to explain on clinician side:
-
-- score should increase further (concerning direction),
-- contributing factors list should become more severe,
-- support actions/interventions may appear.
-
-Technology explanation:
-
-- intervention and escalation preparation are asynchronous via **RabbitMQ**,
-- support records are persisted in **PostgreSQL**,
-- event trail continues in **Kafka**.
-
-### Day 5 (Critical Day / Escalation Demonstration)
-
-Patient inputs:
-
-- Morning: **No**
-- Medication: **No**
-- Meal: **No**
-- Activity: **No**
-- Evening: **No**
-- Appointment scheduled: **No**
-- Sleep: **3:00 AM**
-- Notes: "Could not manage today."
-
-What to explain on clinician side:
-
-- likely high-risk state (concerning/acute, depending on current baseline/history),
-- stronger interventions and possible escalation visibility,
-- this validates early-warning and action orchestration.
-
-Technology explanation:
-
-- risk threshold logic in `RiskEngine` drives state transition,
-- escalation/intervention jobs are produced and consumed asynchronously,
-- clinician view reflects latest persisted records plus recalculated state.
+`BaselineEngine` rates for baseline snapshot use **raw** checkboxes on the entity, not `isEffectiveClaim`. Risk uses **verified** effective claims. They can **diverge** if evidence is still pending. Narrate: *“trust path for scoring is what’s verified”*.
 
 ---
 
-## 5. Live Narration Template (Per Day)
+## 0. Pre-flight checklist
 
-Use this concise structure each time:
+- [ ] `docker compose up --build` (or `-d`); app responds at `http://localhost:8080/login.html`.  
+- [ ] If `eric@patient.com` already exists, use a new email or `npm run dev:infra-reset` then rebuild (**destroys** DB).  
+- [ ] A few small **JPEG/PNG/WebP** images (&lt; 10MB each; **client** guard). Server allows **up to 12MB** per part (`application.yml`).  
+- [ ] **Split screen:** **left** = clinician (wider), **right** = patient.  
+- [ ] Plan **5 consecutive real-calendar dates** ending **today** (or ending **yesterday** if you prefer, but still within `[today-6, today]` for all five). **Write them on a sticky** before recording.
 
-1. "I am now logging Day X on the patient side."
-2. "I submit the check-in and trigger risk recalculation."
-3. "On the clinician side, we can see the new state, score, and factors."
-4. "Under the hood: PostgreSQL stores history, Redis maintains fast rolling state, RabbitMQ handles asynchronous support jobs, and Kafka records domain events."
+**Suggested opening (technology-accurate):**
 
----
-
-## 6. How to Explain "What Goes Where"
-
-- **Daily check-in payload** -> REST API -> persisted in `DailySignalLog` (PostgreSQL).
-- **Recent behavior deltas and streaks** -> Redis keys/counters for rapid access.
-- **Risk result** -> `RiskAssessment` record (PostgreSQL) + cached state (Redis).
-- **Intervention/escalation actions** -> RabbitMQ messages -> consumer -> `InterventionRecord` / `EscalationRecord`.
-- **Domain traceability** -> Kafka event topics for system-wide audit/extensibility.
-- **UI reflection** -> Clinician page polls and renders latest summary every 5 seconds.
+> “Patient check-ins are stored in Postgres; photo bytes in S3. Redis holds operational cache and de-dupe locks; RabbitMQ runs intervention-style jobs; Kafka streams domain events. The clinician reviews evidence, then I run a fresh risk pass — that call loads only logs in the last **seven real calendar days**.”
 
 ---
 
-## 7. Strong Closing Statement for Video
+## 1. Window layout
 
-> "This demonstrates an end-to-end cloud programming solution where patient behavior signals are transformed into explainable clinical insight and asynchronous support actions. Although it is a proof-of-concept, the architecture is intentionally production-oriented and extensible."
+| Window | After login | Role |
+|--------|-------------|------|
+| **Left ~55–60%** | `clinician.html` | Roster, Eric, evidence queue, **Run Assessment** |
+| **Right** | `patient.html` | Date, toggles, meal chips, files, submit |
 
+**Poll behaviour (clinician):** ~**5s** main refresh, ~**15s** full roster, ~**2s** evidence queue (see `clinician.html`).
+
+**Order:** clinician login → **Add New Patient (Eric)** → **copy user id** if you need the baseline curl → patient login.
+
+---
+
+## 2. Create Eric (clinician) — paste table
+
+> Set **Recovery start date** to your **Day 1** log date (first row in §5), *or* one day before it — that keeps `daysSinceRecoveryStart` and baseline window **coherent**.
+
+| Field | Value |
+|-------|--------|
+| **Full name** | `Eric Ng` |
+| **Login email** | `eric@patient.com` |
+| **Login password** | `demo123` |
+| **Profile photo** | Optional (S3) |
+| **Recovery start date** | Same as **Day 1** date in §5 (e.g. `2026-04-18` if Day 5 is `2026-04-22`) |
+| **Typical sleep start hour** | `23` |
+| **Expected activity days per week** | `4` |
+| **Expected medication doses per day** | `2` |
+| **Medication schedule** | `Sertraline 50mg — morning; Quetiapine 25mg — evening` |
+| **Expected meals per day** | `3` |
+| **Expected activity type** | `30-minute walk or light gym, 4×/week` |
+| **Expected sleep target** | `Lights out 23:00; wind-down from 22:00` |
+| **Baseline reference source** | `Clinician intake interview` |
+| **Baseline intake notes** | (block below) |
+
+**Intake notes (paste):**
+
+```text
+Eric (he/him, 32) — recent stepped discharge with MDD, stable on SSRI + low-dose quetiapine. Partner at home. Targets: 3 meals/day, 2 med passes, 4 activity days/week, sleep by ~23:00. Vulnerability: late night scrolling, then missed morning. Photo proof for any claimed yes to meds/meals/activity so the score can trust the trend.
+```
+
+**Click Create** → highlight Eric. **Save the returned `id`** for the baseline `POST` (or fetch from `GET /api/users`).
+
+---
+
+## 3. Patient login (right window)
+
+- `eric@patient.com` / `demo123` → `patient.html`
+
+---
+
+## 4. Suggested **demo day calendar** (example)
+
+If **real today = 2026-04-22**:
+
+| Story day | Log date (patient picker) |
+|-----------|---------------------------|
+| Day 1 | 2026-04-18 |
+| Day 2 | 2026-04-19 |
+| Day 3 | 2026-04-20 |
+| Day 4 | 2026-04-21 |
+| Day 5 | 2026-04-22 |
+
+Adjust the block so **all dates are within the last 7 real days** from your recording date.
+
+---
+
+## 5. Day-by-day clicks (concerning → recovery)
+
+**After Day 2 is logged** (i.e. you have 2+ days, aim for 3 before baseline — **ideally after Day 3**): run **`POST .../baseline/recalculate`**, then **Run Assessment** on the clinician. That matches `BaselineEngine`’s `minimum-days-required: 3` path cleanly when you have three log rows on Apr 18–20.
+
+**Bad days (Days 1–2):** keep toggles **off** to avoid large evidence uploads. **All-off** = no files.
+
+### Day 1 — “Couldn’t start”
+
+| Control | Set |
+|--------|-----|
+| Morning / Med / Meal / Activity / Evening | All **off** |
+| Appt | No |
+| Sleep | `1:00 AM` |
+| Notes | e.g. `In bed all day, skipped routine.` |
+
+**Submit** → **Run Assessment** (no evidence to approve). Narrate: Postgres + Redis streak update + `routine.signal.logged` to Kafka; interventions only if state/thresholds fire after enough data.
+
+### Day 2 — “Still flat”
+
+| Control | Set |
+|--------|-----|
+| All routine toggles | **off** |
+| Sleep | `2:00 AM` |
+| Notes | e.g. `Partner at work, stayed inside.` |
+
+**Submit** → **Run Assessment**. Say: *trend is still not recovery*.
+
+### Day 3 — “First structured day” (needs photos + approvals)
+
+| Control | Set |
+|--------|-----|
+| Morning | **On** + `morningEvidence` file |
+| Medication | **On** + `medicationEvidence` file |
+| Meal | **On**; tick **Breakfast, Lunch, Dinner** (or a subset) and upload **one file per** selected chip (`mealEvidence`, `mealEvidence2`, `mealEvidence3` as in UI) — **required** count must match selected meal parts |
+| Activity | **On** + `activityEvidence` file |
+| Evening | **On** + `eveningEvidence` file |
+| Sleep | `12:00 AM` (midnight) or `11:00 PM` as you prefer |
+| Notes | e.g. `First full routine day with partner back.` |
+
+**Submit** → **left:** approve all pending in queue → **Run Assessment**.
+
+**Then** (mandatory for fair comparative scoring in later days): run **`POST .../baseline/recalculate`** (see §0), then **Run Assessment** again.
+
+### Day 4 — “Bending the curve”
+
+| Control | Set |
+|--------|-----|
+| Same as Day 3 | All on with photos, meal chips as needed |
+| Sleep | `11:00 PM` (closer to intake target) |
+| Notes | e.g. `Walked twice, kept bedtime.` |
+
+**Approve** → **Run Assessment**. You want **lowering** score and/or improved factors vs early days. **RECOVERING** may appear only with **score band + prior state + last-two-assessment downtrend** (`StateEngine`); do not over-promise the label.
+
+### Day 5 — optional close
+
+Repeat strong day; optional: schedule + attend an appointment. **Approve** → **Run Assessment**.
+
+**Closing line idea:**
+
+> “We combined relational storage, object storage, review workflow, and event-backed orchestration. The number is a teaching aid — the architecture is the deliverable.”
+
+---
+
+## 6. Optional: **Alex Thompson** (depth, ~30s)
+
+- Select **Alex Thompson** in the roster (seeded; **not** a patient login — no `loginEmail` in seed).  
+- State: seed sets **CONCERNING** / risk **58**; history and interventions are **pre-seeded** for the **April 2026** timeline.  
+- If you **Run Assessment** for Alex on a real-world date **outside** the seeded 7-day rolling window, the **recomputed** score can **diverge** from the narrative — either **skip** the button and talk from the **dashboard summary**, or set system date in the **mid–late April 2026** range for a matching live recompute.  
+- Switch back to **Eric** for the **live** path.
+
+---
+
+## 7. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|--------|----------------|-----|
+| Score ignores a “day” you logged | `logDate` &gt; 7 days before **real** today | Use **recent** calendar dates (§1, §4). |
+| “No baseline” or flat comparative factors | No `BaselineSnapshot` | `POST /baseline/recalculate` after 3+ logs. |
+| “Yes” did not help risk | Pending / no approval | Approve evidence, **Run Assessment** again. |
+| Score stuck high | All-off days still have trends vs baseline; multi-factor synergy | Check factors list; add baseline after Day 3. |
+| S3 or upload error | LocalStack not ready, wrong env | `docker compose` logs; `S3_ENDPOINT` in app points to `localstack:4566` on Docker network. |
+| `Login email already exists` | Prior run | New email or `docker compose down -v`. |
+
+---
+
+## 8. One-line map (viva)
+
+- **Postgres** — source of truth  
+- **S3 (LocalStack)** — evidence and profile **bytes**; DB holds **metadata**  
+- **Redis** — cache, locks, operational streaks  
+- **RabbitMQ** — `recovery.interventions` / `escalations` / `reentry`  
+- **Kafka** — `routine.signal.logged`, `risk.assessed`, etc.
+
+---
+
+**Good luck** — align **log dates to this week** and set **baseline** once, and the **Eric** story becomes explainable on camera.

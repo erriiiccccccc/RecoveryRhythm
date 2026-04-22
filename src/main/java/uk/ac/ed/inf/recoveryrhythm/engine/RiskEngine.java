@@ -438,7 +438,7 @@ public class RiskEngine {
             return true;
         }
         long approved = evidenceRepo.countByDailySignalLogAndSignalTypeAndStatus(log, signalType, VerificationStatus.APPROVED);
-        return approved >= requiredApprovalCount(log.getUser(), signalType);
+        return approved > 0;
     }
 
     private int computeEffectiveActivityMissStreak(List<DailySignalLog> logs) {
@@ -471,13 +471,4 @@ public class RiskEngine {
         }
     }
 
-    private int requiredApprovalCount(RecoveryUser user, EvidenceSignalType signalType) {
-        if (signalType == EvidenceSignalType.MEAL) {
-            Integer expectedMeals = user.getExpectedMealsPerDay();
-            if (expectedMeals != null && expectedMeals >= 3) {
-                return 3;
-            }
-        }
-        return 1;
-    }
 }

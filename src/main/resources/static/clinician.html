@@ -484,12 +484,24 @@
   #verifyEvidenceModal .modal-card {
     max-width: 620px;
   }
+  #verifyEvidenceModal {
+    z-index: 820;
+  }
   #appNoticeModal .modal-card {
     max-width: 560px;
+  }
+  #appNoticeModal {
+    z-index: 840;
+  }
+  #evidenceQueueModal {
+    z-index: 700;
   }
   #evidencePreviewModal .modal-card {
     max-width: 980px;
     padding: 14px;
+  }
+  #evidencePreviewModal {
+    z-index: 860;
   }
   .evidence-preview-img {
     width: 100%;
@@ -1523,6 +1535,8 @@ async function createPatient() {
 function openDenyEvidenceModal(evidenceId) {
   pendingDenyEvidenceId = evidenceId;
   document.getElementById('denyReason').value = '';
+  // Ensure deny modal is not hidden behind the queue modal
+  document.getElementById('evidenceQueueModal').classList.remove('show');
   document.getElementById('verifyEvidenceModal').classList.add('show');
 }
 
@@ -1537,6 +1551,7 @@ async function confirmDenyEvidence() {
   const evidenceId = pendingDenyEvidenceId;
   closeDenyEvidenceModal();
   await submitEvidenceDecision(evidenceId, false, reason);
+  openEvidenceQueueModal();
 }
 
 function showAppNotice(title, message) {

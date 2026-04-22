@@ -1107,14 +1107,15 @@ function validateEvidenceRequirements() {
     return { ok: false, message: 'Medication is checked. Please upload medication photo proof.' };
   }
   if (formState.mealLogged && !lockedSignals.has('mealLogged')) {
-    const mealsExpected = patientProfile?.expectedMealsPerDay || 1;
+    const selectedMealParts = Object.values(formState.mealParts).filter(Boolean).length;
+    if (selectedMealParts === 0) {
+      return { ok: false, message: 'Meal is checked, but no meal type is selected. Tick breakfast/lunch/dinner for what you actually ate.' };
+    }
     const mealInputs = SIGNAL_META.mealLogged.inputIds;
-    const requiredCount = mealsExpected >= 3 ? 3 : 1;
+    const requiredCount = selectedMealParts;
     const uploadedCount = mealInputs.filter(id => document.getElementById(id).files.length).length;
     if (uploadedCount < requiredCount) {
-      return { ok: false, message: mealsExpected >= 3
-          ? 'Meals are checked and this patient expects 3 meals/day. Please upload 3 meal photos (breakfast/lunch/dinner).'
-          : 'Meal is checked. Please upload meal photo proof.' };
+      return { ok: false, message: `Please upload ${requiredCount} meal photo${requiredCount === 1 ? '' : 's'} for the meal(s) you selected.` };
     }
   }
   if (formState.activityLogged && !lockedSignals.has('activityLogged') && !hasAnyFile(SIGNAL_META.activityLogged.inputIds)) {
@@ -1171,7 +1172,12 @@ function updateProofStatus(statusId, inputIds, required, field) {
   const picked = inputs.filter(i => i.files.length).map(i => i.files[0].name);
   if (picked.length) {
     if (field === 'mealLogged') {
-      status.textContent = `Ready: ${picked.length} meal photo(s)`;
+      const selectedCount = Object.values(formState.mealParts).filter(Boolean).length;
+      if (selectedCount > 0) {
+        status.textContent = `Ready: ${picked.length}/${selectedCount} meal photo(s)`;
+      } else {
+        status.textContent = `Ready: ${picked.length} meal photo(s)`;
+      }
     } else {
       status.textContent = `Ready: ${picked[0]}`;
     }

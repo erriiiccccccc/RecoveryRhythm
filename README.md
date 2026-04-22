@@ -1,333 +1,350 @@
-# Recovery Rhythm (CW3 Report)
+# Recovery Rhythm — Applied Cloud Programming (CW3)
 
-**Applied Cloud Programming Coursework 3 - Event-Driven Recovery Monitoring Proof of Concept**
+**Event-driven post-discharge recovery monitoring — proof of concept**
 
-Recovery Rhythm is an academic proof-of-concept platform for post-discharge recovery monitoring.  
-The system captures daily routine signals from a patient, computes an explainable risk score against a personal baseline, and triggers tiered support workflows for clinicians.
+Recovery Rhythm is a course submission demonstrating how **routine signals** from a patient, together with **clinician intake** and **verifiable photo evidence**, flow through a **multi-service architecture** to produce an **interpretable risk score** and **asynchronous support actions**. A **clinician portal** and **patient portal** are intended to run **side by side** for live demonstration.
 
-> This project is a software engineering PoC and not a medical device. It does not provide diagnosis, treatment, or clinical advice.
+> **Disclaimer:** This is a software engineering proof of concept, not a medical device. It does not provide diagnosis, treatment, or clinical advice. **Authentication is client-side** (`sessionStorage`) for demo only.
 
----
-
-## 1. Coursework Context
-
-CW3 asks for an innovative cloud programming solution in ACP scope, with strong justification of:
-
-- innovation and benefit,
-- implementation quality,
-- completeness,
-- and style.
-
-This submission focuses on an **event-driven health support architecture** where each technology has a distinct systems role:
-
-- transactional persistence,
-- real-time state handling,
-- asynchronous orchestration,
-- and event streaming for auditability/extensibility.
+**Documentation:** This file was last aligned with the **Java sources** in `src/main/java` and **static** UIs in `src/main/resources/static/`, `application.yml`, and `docker-compose.yml` (audit-style pass).
 
 ---
 
-## 2. Problem Statement and Motivation
+## Table of contents
 
-Many wellbeing tools are diary-like and reactive. However, in recovery settings, deterioration often appears as **small sustained routine deviations** (missed morning check-ins, sleep drift, reduced activity) rather than one single dramatic event.
-
-Recovery Rhythm addresses this by:
-
-1. building a **personal baseline** from stable days,
-2. detecting **pattern drift** in recent data,
-3. producing an **explainable risk score** (not black-box ML),
-4. launching **graduated support interventions** using messaging systems.
-
-Primary beneficiary: clinical teams who need a compact, interpretable operational view of patient trajectory.  
-Secondary beneficiary: patients who receive low-pressure support prompts instead of binary "all-or-nothing" alerts.
+1. [Executive summary](#1-executive-summary)  
+2. [Coursework alignment](#2-coursework-alignment)  
+3. [Problem and motivation](#3-problem-and-motivation)  
+4. [What the system does](#4-what-the-system-does)  
+5. [Architecture and packages](#5-architecture-and-packages)  
+6. [Evidence, S3, and risk (verified vs raw)](#6-evidence-s3-and-risk-verified-vs-raw)  
+7. [Risk model (engine summary)](#7-risk-model-engine-summary)  
+8. [Recovery states](#8-recovery-states)  
+9. [Technology stack](#9-technology-stack)  
+10. [Seeded data and demo patients](#10-seeded-data-and-demo-patients)  
+11. [Build, run, and configuration](#11-build-run-and-configuration)  
+12. [Operational tuning (`application.yml`)](#12-operational-tuning-applicationyml)  
+13. [Ports and URLs](#13-ports-and-urls)  
+14. [REST API (complete)](#14-rest-api-complete)  
+15. [Messaging and events (actual names)](#15-messaging-and-events-actual-names)  
+16. [Front ends](#16-front-ends)  
+17. [Rubric mapping](#17-rubric-mapping)  
+18. [AI usage](#18-ai-usage)  
+19. [Limitations and future work](#19-limitations-and-future-work)  
+20. [Companion documents](#20-companion-documents)
 
 ---
 
-## 3. High-Level Architecture
+## 1. Executive summary
 
+| Aspect | Description |
+|--------|-------------|
+| **Idea** | Compare **recent** daily behaviour (and verified claims) to a **baseline snapshot**; aggregate weighted **factors** into a 0–100 **risk score**; map score + history to a **RecoveryState**; open/close **episodes**; queue **interventions** / **escalations**; emit **Kafka** events. |
+| **Stack** | Spring Boot **3.2.0** (Java **17**), PostgreSQL, Redis, RabbitMQ, Apache Kafka, AWS SDK v2 → **S3** (LocalStack in Docker for dev). |
+| **Demo** | `DataInitializer` seeds **Alex Thompson**; **Eric Ng** is **created in the UI** and is **not** seeded (see [DEMO_PLAN.md](DEMO_PLAN.md)). |
+
+---
+
+## 2. Coursework alignment
+
+CW3 rewards **innovation**, **implementation quality** (real integrations), **completeness** of a credible story, and **presentation**. Each major infrastructure component has a **defined role** (relational truth, object storage, hot state, work queues, event log).
+
+---
+
+## 3. Problem and motivation
+
+Sustained **routine drift** (sleep, check-ins, meals, activity, adherence) is often how difficulty appears after discharge. The system is built to (a) **store** what happened, (b) **verify** where photo proof matters, and (c) show **why** a score changed via named **contributing factors**.
+
+---
+
+## 4. What the system does
+
+- **Clinicians:** list users, create patients (`POST` JSON or `POST` multipart **with profile photo** to S3), add support contacts, read **recovery summary** (aggregated), review **evidence** (approve / deny with optional reason), run **`POST /risk/recalculate`** via **Run Assessment** in `clinician.html`.  
+- **Patients:** submit daily signals via **`POST /signals/daily-with-evidence`** (multipart) as implemented in `patient.html`.  
+- **No clinician UI** currently calls **`POST /baseline/recalculate`**. A **baseline snapshot** (used for comparative risk) is **not** created when a user is first registered; it is produced when `BaselineService.recalculate` runs (see §6, §10, [DEMO_PLAN.md](DEMO_PLAN.md)).  
+- **Interventions** go through **RabbitMQ**; consumers persist outcomes; **Redis** is used for deduplication locks; **Kafka** records domain events.
+
+---
+
+## 5. Architecture and packages
+
+```text
+patient.html / clinician.html
+  →  REST (JSON + multipart)
+  →  Spring Boot: controller → service → repository / S3 / Redis / Rabbit / Kafka
+  →  PostgreSQL (entities)
+  →  S3  (evidence + profile object bytes)
+  →  Redis, RabbitMQ, Kafka
 ```
-Patient UI (patient.html)
-  -> POST daily signals
-  -> POST risk recalculate
-      -> Spring Boot API + Services + Engines
-         -> PostgreSQL (durable history)
-         -> Redis (fast rolling counters/cache/locks)
-         -> RabbitMQ (async intervention/escalation jobs)
-         -> Kafka (domain event stream)
-  -> Clinician UI (clinician.html) polls recovery summary every 5s
-```
 
-### 3.1 Core Components
+| Package / area | Role |
+|----------------|------|
+| `controller/` | All REST: `User`, `Signal`, `Evidence`, `Assessment`, `Episode`, `RecoverySummary`. |
+| `service/` | Business logic, S3, Redis, interventions, episodes, risk/baseline. |
+| `engine/` | `BaselineEngine`, `RiskEngine`, `StateEngine`. |
+| `messaging/` | Rabbit publish + consumer. |
+| `events/` | `KafkaEventPublisher`, `KafkaEventConsumer`, `DomainEvent`. |
+| `config/` | Redis, Kafka, RabbitMQ, S3, Jackson. |
+| `init/` | `DataInitializer`, `S3BucketInitializer`. |
 
-- `controller/`: API surface (`/api/users`, `/signals`, `/risk`, `/recovery-summary`).
-- `engine/`: baseline and risk logic (`BaselineEngine`, `RiskEngine`, `StateEngine`).
-- `service/`: orchestration layer for persistence, assessment, interventions, and escalation.
-- `messaging/`: RabbitMQ publishers/consumers for asynchronous jobs.
-- `events/`: Kafka domain event publisher/consumer for event traceability.
-- `entity/` + `repository/`: JPA domain model and data access.
+**Repository:** 75 Java files under `uk.ac.ed.inf.recoveryrhythm` in tree (see IDE); controllers are the external contract.
 
 ---
 
-## 4. Technology Stack and What Each Technology Does
+## 6. Evidence, S3, and risk (verified vs raw)
 
-### 4.1 Spring Boot (Java 17)
+| Concern | Behaviour in code |
+|---------|-------------------|
+| **Storage** | Evidence files: `EvidenceService` + `S3StorageService` → S3. Profile images: `UserService` + `S3StorageService` on `with-profile` create. `S3BucketInitializer` runs on startup (bucket). |
+| **Metadata** | `SignalEvidence` rows in **PostgreSQL**; statuses `PENDING` / `APPROVED` / `DENIED`. |
+| **Risk** | `RiskEngine.isEffectiveClaim(...)`: a claimed signal counts toward rates/streaks if the day is **fully** `VERIFIED` **or** that signal type has **at least one** `APPROVED` evidence record (`countByDailySignalLogAndSignalTypeAndStatus` — **approved &gt; 0** for that type). **Pending** evidence does **not** make a “yes” claim effective. |
+| **Baseline** | `BaselineEngine` computes rates from **raw** `DailySignalLog` booleans (e.g. `isMorningCheckInCompleted()`), **not** the same effective-claim logic as `RiskEngine`. For a new patient, `BaselineEngine.calculate` may fall back to **synthetic** defaults when there are no logs (`emptyBaseline`). |
+| **Denied evidence** | `RiskEngine` adds a **denied evidence** factor when count of `DENIED` in the assessment window is &gt; 0. |
 
-Spring Boot is the application backbone. It exposes REST APIs, wires dependencies, handles validation, and integrates with PostgreSQL, Redis, RabbitMQ, and Kafka through dedicated starters.
-
-Why it helps:
-
-- rapid integration of multiple cloud-style components,
-- clear service-layer architecture suitable for coursework marking,
-- production-like structure while remaining compact.
-
-### 4.2 PostgreSQL (System of Record)
-
-PostgreSQL stores durable relational history:
-
-- users and support contacts,
-- daily logs,
-- baseline snapshots,
-- risk assessments,
-- intervention records,
-- escalation records,
-- recovery episodes.
-
-Why it helps:
-
-- guarantees persistence and relational integrity,
-- supports clinician audit trail and historical analysis,
-- separates durable facts from ephemeral runtime state.
-
-### 4.3 Redis (Fast State and Caching Layer)
-
-Redis stores operational short-horizon state such as:
-
-- streak counters,
-- rolling 7-day counts,
-- cached risk state/explanations,
-- re-entry flags,
-- deduplication locks for intervention dispatch.
-
-Why it helps:
-
-- fast reads/writes for repeated risk operations,
-- avoids expensive repeated DB scans for streak logic,
-- prevents duplicate intervention spam via lock TTL.
-
-### 4.4 RabbitMQ (Asynchronous Action Queue)
-
-RabbitMQ is used to queue intervention/escalation jobs.  
-Assessment and support delivery are deliberately decoupled:
-
-1. risk engine decides support action,
-2. publisher enqueues message,
-3. consumer handles message and persists intervention outcome.
-
-Why it helps:
-
-- keeps risk recalculation responsive,
-- supports retries and eventual processing,
-- models real distributed system behavior (producer/consumer separation).
-
-### 4.5 Kafka (Domain Event Stream)
-
-Kafka captures significant domain events (signal logged, baseline updated, risk assessed, episode opened/closed, intervention triggered, escalation triggered).
-
-Why it helps:
-
-- creates an append-only event history for observability,
-- enables future analytics/stream-processing extensions,
-- demonstrates event-driven architecture beyond request-response APIs.
-
-### 4.6 Static Frontend (HTML/CSS/JavaScript)
-
-- `login.html`: role-based demo entry.
-- `patient.html`: patient logging workflow with date-based entries.
-- `clinician.html`: live monitoring dashboard with periodic refresh.
-
-Why it helps:
-
-- quick to deploy in one Spring Boot artifact,
-- enough UI depth for a convincing split-screen demonstration,
-- no heavy SPA framework overhead for a timed coursework PoC.
+**Multipart limits** (see `application.yml`): `max-file-size: 12MB`, `max-request-size: 40MB`. The patient page also enforces a **10MB** per-file check client-side.
 
 ---
 
-## 5. Functional Flow (What Is Going On End-to-End)
+## 7. Risk model (engine summary)
 
-### 5.1 Daily Logging Flow
+`RiskEngine` (see class-level comment) uses:
 
-1. Patient selects a date and submits daily routine signals.
-2. API stores the signal in PostgreSQL.
-3. Redis rolling counters/streak state are updated.
-4. Risk recalculation compares recent window vs baseline.
-5. New risk assessment is persisted.
-6. State transitions (stable/drifting/concerning/etc.) are evaluated.
-7. Intervention/escalation jobs may be published to RabbitMQ.
-8. Domain events are published to Kafka.
-9. Clinician view refreshes and reflects the latest state.
+- `recovery-rhythm.risk.assessment-window-days` (default **7**): which `DailySignalLog` rows are loaded — **`logDate` from `LocalDate.now().minusDays(7)` to `LocalDate.now()`** inclusive.  
+- `recovery-rhythm.risk.recent-window-days` (default **5**): subset of those logs for some “short window” rates.
 
-### 5.2 Baseline and Explainability
+**Implication for demos:** the **date picker** simulates a calendar day, but the engine’s **inclusion in the 7-day window** is always measured against the **real system clock** (`LocalDate.now()`). Logs dated **earlier than seven days before today** are **excluded** from the next assessment. See [DEMO_PLAN.md](DEMO_PLAN.md).
 
-The baseline is computed from stable days and includes rates (morning, medication, activity, etc.) and average sleep timing.  
-Each risk assessment returns:
+**Representative factors** (non-exhaustive; see `RiskEngine` for the full set):  
+morning / medication / meal / evening **rate drop vs baseline**, **activity miss streak** (effective activity), **sleep timing drift** vs baseline average, **missed scheduled appointments**, **multi-signal synergy** (extra weight when 3+ positive-impact factors are present), **re-engagement bonus** (negative, when **yesterday**’s log was fully engaged with **effective** claims), **denied evidence** penalty.
 
-- score (0-100),
-- state label,
-- concise summary,
-- detailed explanation,
-- named contributing factors with impact/severity.
-
-This improves interpretability in an academic setting because the assessor can trace "why score changed" rather than seeing an opaque number.
+`totalScore` is clamped to **0–100**.
 
 ---
 
-## 6. Recovery States Used in the System
+## 8. Recovery states
 
-- `STABLE` (0-24): behavior aligned with baseline.
-- `DRIFTING` (25-44): early deviation, monitor closely.
-- `CONCERNING` (45-69): significant multi-signal drift.
-- `ACUTE_RISK` (70-100): critical breakdown; escalation threshold.
-- `RECOVERING`: downward trend after high-risk period.
+`StateEngine` score bands:
 
----
+| Score | State |
+|------|--------|
+| 0–24 | `STABLE` |
+| 25–44 | `DRIFTING` |
+| 45–69 | `CONCERNING` |
+| 70–100 | `ACUTE_RISK` |
 
-## 7. Seeded Demo Data
+**`RECOVERING`:** if the **base** state from the score is `STABLE` or `DRIFTING`, **and** the **previous** state was `CONCERNING` or `ACUTE_RISK`, and the last **two** stored assessments (history order: newest first) show a **strictly decreasing** risk score, then the label becomes `RECOVERING` instead of `STABLE`/`DRIFTING`.
 
-On startup, `DataInitializer` seeds:
+**Escalation** (`RiskEngine` tail): an escalation is only triggered for **`ACUTE_RISK` with score ≥ 80** (and `EscalationService`).
 
-- **Alex Thompson**: full historical trajectory across stable, drifting, acute, and recovering phases.
-- **Eric Ng**: fresh patient profile intended for live logging demonstration.
-
-Demo accounts:
-
-- Clinician: `clinician@rr.nhs.uk` / `demo123`
-- Patient: `eric@patient.com` / `demo123`
+**Episodes** use `episode-open-threshold` (default 45) and `episode-close-threshold` (30) from config (`EpisodeService` / `application.yml`).
 
 ---
 
-## 8. Build and Run Instructions
+## 9. Technology stack
 
-### 8.1 Recommended: Docker Compose
+| Technology | Role |
+|------------|------|
+| **Spring Boot 3.2, Java 17** | Application server, validation, JPA, integrations. |
+| **PostgreSQL** | Authoritative data: users, signals, baselines, assessments, evidence, episodes, interventions, escalations, etc. |
+| **Redis** | `RedisStateService`: streaks, cached risk, intervention **deduplication** locks, re-entry mode flags (TTL in config). |
+| **RabbitMQ** | `recovery.exchange` (direct) → queues in §15. |
+| **Kafka** | String JSON events on **topic name = event type** (see §15). KRaft in `docker-compose` (no Zookeeper). |
+| **S3 (LocalStack)** | Object storage; credentials `test`/`test` in compose (dev only). |
+| **Docker Compose** | Full stack: **postgres, redis, kafka, rabbitmq, localstack, app** (see [docker-compose.yml](docker-compose.yml)). |
+
+---
+
+## 10. Seeded data and demo patients
+
+| Subject | Seeded? | Notes |
+|---------|---------|--------|
+| **Alex Thompson** | Yes, `DataInitializer` | `recoveryStartDate` = **2026-04-07**; signals **2026-04-07**–**2026-04-21**; baseline row, risk history, episode, interventions, escalation **written in DB**. **No** `loginEmail` in seed — **Alex is not a patient login**; use as **roster + clinician view** of history. `setAlexCurrentState` sets display state / score. |
+| **Clinician** | Not in `DataInitializer` | Use **`clinician@rr.nhs.uk` / `demo123`** in `login.html` (not stored in DB; client-side role routing). |
+| **Eric Ng** | No | **Create** via **Add New Patient** in `clinician.html`; you choose email/password. |
+
+**Alex + live `RiskEngine`:** On **Run Assessment**, the engine only loads logs in **`[now-7d, now]`** (real clock). The seeded narrative is **April 2026**; for a **recomputed** score to match the story, the **OS date** should fall in a range where those logs are still inside the 7-day window (roughly **mid–late April 2026** for this repo’s seed). The **pre-seeded** `RiskAssessment` rows still drive **history/trend** until you overwrite with a new assessment.
+
+**New patient (e.g. Eric):** For **comparative** factors, you need an **active** `BaselineSnapshot` (`baseline/recalculate` at least once after enough log days; `minimum-days-required` default **3** in `BaselineEngine` fallback). The **clinician UI does not** call baseline rec — use the API (see [DEMO_PLAN.md](DEMO_PLAN.md)) or a REST client.
+
+**Summary metrics** (`RecoverySummaryController`): `daysSinceRecoveryStart` = `ChronoUnit.DAYS` between `recoveryStartDate` and **`LocalDate.now()`**; `loggedDaysCount` = **total** `DailySignalLog` rows for the user (not “last 7 days”).
+
+---
+
+## 11. Build, run, and configuration
+
+### Full stack (recommended)
 
 ```bash
 docker compose up --build
 ```
 
-Services exposed:
+App: **http://localhost:8080/login.html** (or `/clinician.html` / `/patient.html` with session from login).
 
-- App: `http://localhost:8080/login.html`
-- RabbitMQ management: `http://localhost:15672` (`guest` / `guest`)
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-- Kafka: `localhost:9092`
+### NPM scripts (see [package.json](package.json))
 
-### 8.2 Local (Without Docker)
+| Script | Command |
+|--------|---------|
+| `dev:infra-up` | `docker compose up -d postgres redis kafka rabbitmq localstack` |
+| `dev:app` | `mvn spring-boot:run` |
+| `dev` | infra then app |
+| `dev:infra-down` | `docker compose stop …` |
+| `dev:infra-reset` | `docker compose down -v` (wipes DB volume) |
+| `build` | `mvn clean package` |
+| `test` | `mvn test` |
 
-Requirements:
+### Local (no app container)
 
-- Java 17
-- Maven
-- Running PostgreSQL, Redis, RabbitMQ, Kafka
-
-Set environment variables used in `application.yml`:
-
-- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-- `REDIS_HOST`, `REDIS_PORT`
-- `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASS`
-- `KAFKA_BOOTSTRAP_SERVERS`
-
-Run:
-
-```bash
-mvn spring-boot:run
-```
+Run Postgres, Redis, RabbitMQ, Kafka, and LocalStack (or S3) per `application.yml` defaults, then `mvn spring-boot:run`. Set env to match: `POSTGRES_*`, `REDIS_*`, `RABBITMQ_*`, `KAFKA_BOOTSTRAP_SERVERS`, `S3_*`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`.
 
 ---
 
-## 9. Key API Endpoints
+## 12. Operational tuning (`application.yml`)
 
-- `GET /api/users`
-- `POST /api/users/{id}/signals/daily`
-- `GET /api/users/{id}/signals`
-- `POST /api/users/{id}/baseline/recalculate`
-- `POST /api/users/{id}/risk/recalculate`
-- `GET /api/users/{id}/risk/latest`
-- `GET /api/users/{id}/recovery-summary`
-- `GET /api/users/{id}/episodes/active`
-- `GET /api/users/{id}/interventions`
-- `GET /api/users/{id}/escalations`
+| Key (prefix `recovery-rhythm.`) | Default | Meaning |
+|---------------------------------|---------|---------|
+| `baseline.stable-window-days` | 5 | `BaselineEngine` window from `recoveryStartDate` (with fallback to recent logs if sparse). |
+| `baseline.minimum-days-required` | 3 | Floors before using “recent logs” for baseline. |
+| `risk.assessment-window-days` | 7 | Load logs for this many days ending **today** (inclusive of both ends in query). |
+| `risk.recent-window-days` | 5 | Shorter sub-window for some rates. |
+| `risk.episode-open-threshold` | 45 | Episode open when risk crosses up. |
+| `risk.episode-close-threshold` | 30 | Close when under. |
+| `risk.recovering-stable-days` | 3 | Present in config; **not** referenced in `EpisodeService` in the current code (episode open/close uses state logic in that class). |
+| `intervention.dedup-lock-ttl-minutes` | 60 | Redis lock for intervention de-dupe. |
+| `reentry.disengagement-streak-threshold` | 4 | Morning-miss streak before re-entry job path. |
+| `s3.*` | endpoint/region/bucket/keys | S3 access (LocalStack: `http://localhost:4566` from host, `http://localstack:4566` in Docker network). |
 
----
-
-## 10. Mapping to CW3 Rubric
-
-### 10.1 Innovation / Idea / Benefit
-
-- Personal baseline drift detection (not population averaging).
-- Explainable risk factors instead of black-box output.
-- Clinician-patient dual view showing operational impact in real time.
-- Tiered intervention design with asynchronous queueing.
-
-### 10.2 Execution / Implementation
-
-- Structured multi-layer Spring architecture.
-- Correct role separation of PostgreSQL/Redis/RabbitMQ/Kafka.
-- Event publication + async consumers + dashboard integration.
-
-### 10.3 Completeness
-
-- End-to-end flow implemented from input to dashboard update.
-- Historical seed trajectory plus live patient scenario.
-- Working deployment via Docker Compose.
-
-### 10.4 Style
-
-- Consistent API design and package layout.
-- Production-style concerns (state caching, decoupling, eventing).
-- Polished UI for coursework demonstration and clear storytelling.
+JPA: `spring.jpa.hibernate.ddl-auto: create-drop` (dev; **restarts drop schema**).
 
 ---
 
-## 11. AI Usage Statement
+## 13. Ports and URLs
 
-AI assistance was used to accelerate iterative development, code drafting, and documentation refinement.  
-All architecture choices, technology selection, integration decisions, and final validation were reviewed and controlled by the student.  
-AI improved speed and writing quality but did not replace implementation ownership or system-level reasoning.
-
----
-
-## 12. Limitations and Future Work
-
-Current PoC limitations:
-
-- no real authentication backend (demo-only login),
-- no real SMS/email connector (interventions are persisted/logged),
-- no wearable/device ingestion,
-- schema reset behavior (`ddl-auto: create-drop`) is for demo convenience.
-
-Potential extensions:
-
-- production auth and role-based access control,
-- stream analytics (e.g., Flink) over Kafka topics,
-- notification provider integration,
-- temporal smoothing and personalization upgrades in risk modeling.
+| Service | Port / URL |
+|---------|------------|
+| App | `http://localhost:8080` |
+| PostgreSQL | `5432` (user `rhythm`, db `recoveryrhythm` in compose) |
+| Redis | `6379` |
+| Kafka | `9092` |
+| RabbitMQ AMQP | `5672` |
+| RabbitMQ management | `http://localhost:15672` — `guest` / `guest` |
+| LocalStack | `http://localhost:4566` |
 
 ---
 
-## 13. Notes for `cw3_explanation.pdf`
+## 14. REST API (complete)
 
-Use this README as source material, then produce a focused PDF essay (max 1,000 words) covering:
+**Base** paths — all are under the shown prefixes.
 
-1. Why this problem matters and who benefits.
-2. Why each technology was chosen and what role it plays.
-3. How the implementation works end-to-end.
-4. What is complete vs what remains PoC.
-5. How AI influenced the process.
+### Users — `UserController` → `/api/users`
 
-Keep the PDF concise, evidence-based, and aligned with rubric language.
+- `GET /api/users`  
+- `POST /api/users` (JSON `CreateUserRequest`)  
+- `POST /api/users/with-profile` (multipart: `payload` + optional `profilePhoto`)  
+- `GET /api/users/patient-accounts`  
+- `GET /api/users/{id}`  
+- `POST /api/users/{id}/support-contacts`  
+- `GET /api/users/{id}/support-contacts`  
+
+### Signals — `SignalController` → `/api/users/{userId}/signals`
+
+- `POST /api/users/{userId}/signals/daily`  
+- `POST /api/users/{userId}/signals/daily-with-evidence` (multipart; parts `payload`, `morningEvidence`, `medicationEvidence`, `mealEvidence`, `mealEvidence2`, `mealEvidence3`, `activityEvidence`, `eveningEvidence`)  
+- `GET /api/users/{userId}/signals`  
+- `GET /api/users/{userId}/signals/recent`  
+
+### Evidence — `EvidenceController` → `/api/evidence`
+
+- `GET /api/evidence/pending`  
+- `GET /api/evidence/signal/{signalLogId}`  
+- `POST /api/evidence/{evidenceId}/approve` (optional body `EvidenceVerificationRequest`)  
+- `POST /api/evidence/{evidenceId}/deny`  
+
+### Assessment — `AssessmentController` → `/api/users/{userId}`
+
+- `POST /api/users/{userId}/baseline/recalculate`  
+- `GET /api/users/{userId}/baseline/latest`  
+- `POST /api/users/{userId}/risk/recalculate`  
+- `GET /api/users/{userId}/risk/latest`  
+- `GET /api/users/{userId}/risk/history`  
+
+### Episodes, interventions, escalations — `EpisodeController` → `/api/users/{userId}`
+
+- `GET /api/users/{userId}/episodes`  
+- `GET /api/users/{userId}/episodes/active`  
+- `GET /api/users/{userId}/interventions`  
+- `GET /api/users/{userId}/escalations`  
+
+### Recovery summary — `RecoverySummaryController` → `/api/users/{userId}/recovery-summary`
+
+- `GET /api/users/{userId}/recovery-summary` (single DTO, used by `clinician.html`)
 
 ---
 
-**University of Edinburgh - Applied Cloud Programming (CW3)**  
+## 15. Messaging and events (actual names)
+
+### RabbitMQ (`RabbitMqConfig`)
+
+- **Exchange:** `recovery.exchange` (direct)  
+- **Queues:** `recovery.interventions`, `recovery.escalations`, `recovery.reentry`  
+- **Routing keys:** `intervention`, `escalation`, `reentry`  
+
+### Kafka (`KafkaEventPublisher` topic = first argument, same as event “type”)
+
+Examples: `routine.signal.logged`, `baseline.updated`, `risk.assessed`, `recovery.state.changed`, `recovery.episode.opened`, `recovery.episode.closed`, `intervention.triggered`, `escalation.triggered`.  
+Payloads are JSON `DomainEvent` with `userId` and map fields.
+
+`SignalService.logDailySignal` publishes **`routine.signal.logged`**. `RiskEngine.assess` publishes **`risk.assessed`** and optionally **`recovery.state.changed`**.
+
+---
+
+## 16. Front ends
+
+| File | Purpose |
+|------|---------|
+| `login.html` | Email/password, role, sessionStorage `rr_session`, redirects. |
+| `clinician.html` | Roster, patient detail, **Run Assessment** → `POST .../risk/recalculate` only, evidence modals, **Add patient**. Polling: **~5s** for selected-patient details, **~15s** roster `loadPatients`, **~2s** evidence queue refresh (see `setInterval` in file). |
+| `patient.html` | Daily check-in with `daily-with-evidence` only. |
+| `index.html` | If opened directly, redirects to login or to clinician/patient from session. |
+
+There is **no** separate public SPA build; everything is static under Spring Boot’s resource path.
+
+---
+
+## 17. Rubric mapping
+
+| Criterion | Evidence in repo |
+|----------|-------------------|
+| **Innovation** | Multi-signal, evidence, baseline + risk, event stream, queues. |
+| **Implementation** | JPA, Redis, S3, Rabbit, Kafka, Dockerized stack. |
+| **Completeness** | Seeded + live-create path; async consumers; S3 init. |
+| **Style** | Consistent DTOs, `controller` / `service` / `engine` split. |
+
+---
+
+## 18. AI usage
+
+AI assistance was used to accelerate drafting and refactoring. **Design decisions, selection of technologies, integration, and final checks** are the author’s. AI is a tool for speed and text quality, not a substitute for understanding the submission.
+
+---
+
+## 19. Limitations and future work
+
+- **No server-side auth** / RBAC.  
+- **Not** a regulated medical device.  
+- **Clinician UI** has **no** “Recalculate baseline” button.  
+- **Same-day** signal merge: `SignalService` **OR**s new booleans with existing; cannot easily “undo” a `true` in the same day without a different API.  
+- **Re-engagement** bonus in `RiskEngine` keys off **`LocalDate.now().minusDays(1)`** (real “yesterday”), not the last simulated day in a backdated demo.  
+- `ddl-auto: create-drop` **wipes** DB on each restart.  
+- **Future:** production auth, notification providers, stream analytics, HITL/AI governance for evidence, UI for baseline, align baseline computation with `isEffectiveClaim` if desired.
+
+---
+
+## 20. Companion documents
+
+- **[DEMO_PLAN.md](DEMO_PLAN.md)** — Split-screen, Eric paste, **date rules**, **baseline** curl, day script.  
+- **`cw3_explanation.pdf`** — Short reflective essay; use README for technical fact-checking.
+
+---
+
+**University of Edinburgh — Applied Cloud Programming (CW3)**  
 **Project:** Recovery Rhythm
