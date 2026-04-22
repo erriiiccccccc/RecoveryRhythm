@@ -6,8 +6,6 @@ Recovery Rhythm is a course submission demonstrating how **routine signals** fro
 
 > **Disclaimer:** This is a software engineering proof of concept, not a medical device. It does not provide diagnosis, treatment, or clinical advice. **Authentication is client-side** (`sessionStorage`) for demo only.
 
-**Documentation:** This file was last aligned with the **Java sources** in `src/main/java` and **static** UIs in `src/main/resources/static/`, `application.yml`, and `docker-compose.yml` (audit-style pass).
-
 ---
 
 ## Table of contents
@@ -41,7 +39,7 @@ Recovery Rhythm is a course submission demonstrating how **routine signals** fro
 |--------|-------------|
 | **Idea** | Compare **recent** daily behaviour (and verified claims) to a **baseline snapshot**; aggregate weighted **factors** into a 0–100 **risk score**; map score + history to a **RecoveryState**; open/close **episodes**; queue **interventions** / **escalations**; emit **Kafka** events. |
 | **Stack** | Spring Boot **3.2.0** (Java **17**), PostgreSQL, Redis, RabbitMQ, Apache Kafka, AWS SDK v2 → **S3** (LocalStack in Docker for dev). |
-| **Demo** | `DataInitializer` seeds **Alex Thompson**; **Eric Ng** is **created in the UI** and is **not** seeded (see [DEMO_PLAN.md](DEMO_PLAN.md)). |
+| **Demo** | **Five** seeded roster users (one per `RecoveryState`); **Eric** (or any real patient) is **added in the UI** — see [DEMO_PLAN.md](DEMO_PLAN.md). |
 
 ---
 
@@ -156,15 +154,19 @@ morning / medication / meal / evening **rate drop vs baseline**, **activity miss
 
 ## 10. Seeded data and demo patients
 
-| Subject | Seeded? | Notes |
-|---------|---------|--------|
-| **Alex Thompson** | Yes, `DataInitializer` | `recoveryStartDate` = **2026-04-07**; signals **2026-04-07**–**2026-04-21**; baseline row, risk history, episode, interventions, escalation **written in DB**. **No** `loginEmail` in seed — **Alex is not a patient login**; use as **roster + clinician view** of history. `setAlexCurrentState` sets display state / score. |
-| **Clinician** | Not in `DataInitializer` | Use **`clinician@rr.nhs.uk` / `demo123`** in `login.html` (not stored in DB; client-side role routing). |
-| **Eric Ng** | No | **Create** via **Add New Patient** in `clinician.html`; you choose email/password. |
+On first run, `DataInitializer` loads **five** users (clinician roster only — no `loginEmail`):
 
-**Alex + live `RiskEngine`:** On **Run Assessment**, the engine only loads logs in **`[now-7d, now]`** (real clock). The seeded narrative is **April 2026**; for a **recomputed** score to match the story, the **OS date** should fall in a range where those logs are still inside the 7-day window (roughly **mid–late April 2026** for this repo’s seed). The **pre-seeded** `RiskAssessment` rows still drive **history/trend** until you overwrite with a new assessment.
+- **Morgan Ellis** — STABLE (18)  
+- **Jordan Lee** — DRIFTING (33)  
+- **Alex Thompson** — CONCERNING (58); full **seed** (signals, history, **active** episode, interventions, escalation)  
+- **Samira Okonkwo** — ACUTE_RISK (85)  
+- **Casey Reid** — RECOVERING (36)  
 
-**New patient (e.g. Eric):** For **comparative** factors, you need an **active** `BaselineSnapshot` (`baseline/recalculate` at least once after enough log days; `minimum-days-required` default **3** in `BaselineEngine` fallback). The **clinician UI does not** call baseline rec — use the API (see [DEMO_PLAN.md](DEMO_PLAN.md)) or a REST client.
+**Live patient (e.g. Eric):** create via **Add New Patient**; not in the seed.
+
+**Clinician login** (not in DB): `clinician@rr.nhs.uk` / `demo123` in `login.html`.  
+
+`RiskEngine` only looks at logs in the **last 7 real calendar days**; seed dates are in **~April 2026**. The UI can still show **pre-seeded** summary/trend. For a **new** user’s comparative scores, run **`POST /api/users/{id}/baseline/recalculate`** once (no button in the UI) — see [DEMO_PLAN.md](DEMO_PLAN.md).
 
 **Summary metrics** (`RecoverySummaryController`): `daysSinceRecoveryStart` = `ChronoUnit.DAYS` between `recoveryStartDate` and **`LocalDate.now()`**; `loggedDaysCount` = **total** `DailySignalLog` rows for the user (not “last 7 days”).
 
@@ -341,7 +343,7 @@ AI assistance was used to accelerate drafting and refactoring. **Design decision
 
 ## 20. Companion documents
 
-- **[DEMO_PLAN.md](DEMO_PLAN.md)** — Split-screen, Eric paste, **date rules**, **baseline** curl, day script.  
+- **[DEMO_PLAN.md](DEMO_PLAN.md)** — Split-screen, **seeded roster** (optional) + **Eric** flow, **date rules**, **baseline** curl, day script.  
 - **`cw3_explanation.pdf`** — Short reflective essay; use README for technical fact-checking.
 
 ---

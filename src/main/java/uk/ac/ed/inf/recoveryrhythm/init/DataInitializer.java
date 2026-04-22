@@ -14,16 +14,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Seeds the demo scenario for "Alex Thompson" — a person in recovery
- * who starts stable, gradually drifts, enters an acute risk episode,
- * and begins recovering.
+ * Seeds demo data: a full narrative for "Alex Thompson" (CONCERNING) plus
+ * four lightweight roster personas at fixed {@link RecoveryState} levels for the dashboard.
  *
  * Timeline (all dates relative to April 7, 2026 = recovery start):
- *   Days 1–5  (Apr 7–11):  Solid routine — stable baseline
- *   Days 6–8  (Apr 12–14): Morning misses, sleep drifts, activity drops
- *   Days 9–10 (Apr 15–16): Medication miss, meals drop, no activity — CONCERNING/ACUTE_RISK
- *   Days 11–13 (Apr 17–19): Gradual return — recovery begins
- *   Day 14–15 (Apr 20–21): Improving but still cautious
+ *   Alex — days 1–5 solid; 6–10 drift/crisis; 11–15 recovery arc (see method comments)
+ *   Other personas — 7-day window days 9–15 with patterns matching their state label.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,6 +39,10 @@ public class DataInitializer implements CommandLineRunner {
 
     private static final LocalDate RECOVERY_START = LocalDate.of(2026, 4, 7);
 
+    /** Last 7-day window used for roster demos (days 9–15 of recovery = Apr 16–22). */
+    private static final int WINDOW_START_OFFSET = 9;
+    private static final int WINDOW_END_OFFSET = 15;
+
     @Override
     @Transactional
     public void run(String... args) {
@@ -60,9 +60,18 @@ public class DataInitializer implements CommandLineRunner {
         seedEscalation(alex);
         setAlexCurrentState(alex);
 
+        RecoveryUser morgan = seedMorganStable();
+        RecoveryUser jordan = seedJordanDrifting();
+        RecoveryUser samira = seedSamiraAcute();
+        RecoveryUser casey = seedCaseyRecovering();
+
         log.info("══════════════════════════════════════════════════════════");
         log.info("  Demo data seeded.");
-        log.info("  Alex Thompson ID : {}", alex.getId());
+        log.info("  Alex Thompson (CONCERNING)  : {}", alex.getId());
+        log.info("  Morgan Ellis (STABLE)     : {}", morgan.getId());
+        log.info("  Jordan Lee (DRIFTING)     : {}", jordan.getId());
+        log.info("  Samira Okonkwo (ACUTE)    : {}", samira.getId());
+        log.info("  Casey Reid (RECOVERING)   : {}", casey.getId());
         log.info("  Dashboard: http://localhost:8080/login.html");
         log.info("  Clinician login  : clinician@rr.nhs.uk / demo123");
         log.info("  Patient login    : create in clinician portal (e.g. eric@patient.com / demo123)");
@@ -295,6 +304,200 @@ public class DataInitializer implements CommandLineRunner {
 
         redisState.setRolling7Count(alex.getId(), "med_taken", 5);
         redisState.setRolling7Count(alex.getId(), "meal_logged", 4);
+    }
+
+    // ══ Light roster personas (clinician list only — no patient login) ═══════
+
+    private RecoveryUser seedMorganStable() {
+        RecoveryUser u = userRepo.save(RecoveryUser.builder()
+                .displayName("Morgan Ellis")
+                .recoveryStartDate(RECOVERY_START)
+                .currentState(RecoveryState.STABLE)
+                .currentRiskScore(18)
+                .reentryModeActive(false)
+                .baselineIntakeNotes("Seeded demo — routine consistently on track in the last 7 log days.")
+                .build());
+        for (int d = WINDOW_START_OFFSET; d <= WINDOW_END_OFFSET; d++) {
+            saveSignal(u, RECOVERY_START.plusDays(d), true, true, true, true, false, false, true, 23, null);
+        }
+        saveSimpleBaseline(u, 0.95, 0.96, 0.95, 0.93, 0.94, 1.0, 23.0);
+        saveAssessmentAt(u, RECOVERY_START.plusDays(14), 20, RecoveryState.STABLE,
+                "Recovery pattern is stable and consistent with personal baseline.",
+                "All monitored signals in range for the recent window.",
+                "[]");
+        saveAssessmentAt(u, RECOVERY_START.plusDays(15), 18, RecoveryState.STABLE,
+                "Recovery pattern is stable and consistent with personal baseline.",
+                "Morning, medication, meals, and activity on target; sleep within goal.",
+                "[]");
+        cacheDemoRedis(u, 18, RecoveryState.STABLE,
+                "[{\"factor\":\"re_engagement_bonus\",\"impact\":-10,\"details\":\"All signals completed yesterday — positive engagement signal\",\"severity\":\"PROTECTIVE\"}]");
+        log.info("  ✓ Morgan Ellis (STABLE) seeded");
+        return u;
+    }
+
+    private RecoveryUser seedJordanDrifting() {
+        RecoveryUser u = userRepo.save(RecoveryUser.builder()
+                .displayName("Jordan Lee")
+                .recoveryStartDate(RECOVERY_START)
+                .currentState(RecoveryState.DRIFTING)
+                .currentRiskScore(33)
+                .reentryModeActive(false)
+                .baselineIntakeNotes("Seeded demo — morning and sleep slipped vs earlier stable week.")
+                .build());
+        // Drifting: ~4/7 mornings missed, uneven activity, variable sleep
+        boolean[] morning = {true, false, false, true, false, true, false};
+        boolean[] activity = {true, true, false, true, true, false, true};
+        for (int i = 0; i < 7; i++) {
+            int d = WINDOW_START_OFFSET + i;
+            int sleep = (i < 3) ? 1 : 23;
+            boolean evening = i != 1 && i != 2;
+            saveSignal(u, RECOVERY_START.plusDays(d), morning[i], true, true, activity[i], false, false, evening, sleep,
+                    i == 3 ? "Overslept, skipped walk." : null);
+        }
+        saveSimpleBaseline(u, 0.92, 0.9, 0.88, 0.85, 0.88, 1.0, 23.0);
+        saveAssessmentAt(u, RECOVERY_START.plusDays(14), 28, RecoveryState.DRIFTING,
+                "Routine signals have begun to drift from your baseline.",
+                "Morning check-in and activity below earlier stable rates; sleep variable.",
+                "[]");
+        saveAssessmentAt(u, RECOVERY_START.plusDays(15), 33, RecoveryState.DRIFTING,
+                "Routine signals have begun to drift from your baseline. Primary signal: Morning check-in completion.",
+                "Ongoing shortfall in morning and activity rate vs your established baseline.",
+                "[]");
+        cacheDemoRedis(u, 33, RecoveryState.DRIFTING,
+                "[{\"factor\":\"morning_checkin_drop\",\"impact\":15,\"details\":\"92% → 57% (\\u221235 pp vs baseline)\",\"severity\":\"MEDIUM\"}," +
+                "{\"factor\":\"activity_absence_streak\",\"impact\":20,\"details\":\"1 consecutive days without any activity\",\"severity\":\"MEDIUM\"}]");
+        log.info("  ✓ Jordan Lee (DRIFTING) seeded");
+        return u;
+    }
+
+    private RecoveryUser seedSamiraAcute() {
+        RecoveryUser u = userRepo.save(RecoveryUser.builder()
+                .displayName("Samira Okonkwo")
+                .recoveryStartDate(RECOVERY_START)
+                .currentState(RecoveryState.ACUTE_RISK)
+                .currentRiskScore(85)
+                .reentryModeActive(true)
+                .baselineIntakeNotes("Seeded demo — high concern: disengaged across most signals; escalation path illustrated.")
+                .build());
+        for (int i = 0; i < 7; i++) {
+            int d = WINDOW_START_OFFSET + i;
+            boolean appt = (i == 2);
+            saveSignal(u, RECOVERY_START.plusDays(d),
+                    false, false, false, false, appt, false, false, 3,
+                    i == 0 ? "Crisis week — could not keep routine." : null);
+        }
+        saveSimpleBaseline(u, 0.85, 0.88, 0.9, 0.8, 0.85, 1.0, 23.0);
+        saveAssessmentAt(u, RECOVERY_START.plusDays(14), 78, RecoveryState.ACUTE_RISK,
+                "Multiple critical signals are outside your stable baseline. Immediate support is being coordinated. Risk score: 78.",
+                "Severe disengagement across check-ins, meals, and activity; sleep very late.",
+                "[]");
+        saveAssessmentAt(u, RECOVERY_START.plusDays(15), 85, RecoveryState.ACUTE_RISK,
+                "Multiple critical signals are outside your stable baseline. Immediate support is being coordinated. Risk score: 85.",
+                "Sustained pattern — highest priority review.",
+                "[]");
+        episodeRepo.save(RecoveryEpisode.builder()
+                .user(u)
+                .openedAt(RECOVERY_START.plusDays(14).atTime(8, 0))
+                .peakRiskScore(85)
+                .openingReason("Seeded ACUTE_RISK demo — multi-signal breakdown vs baseline.")
+                .stateAtOpen(RecoveryState.ACUTE_RISK)
+                .active(true)
+                .build());
+        interventionRepo.save(InterventionRecord.builder()
+                .user(u)
+                .triggeredAt(RECOVERY_START.plusDays(15).atTime(9, 0))
+                .interventionType(InterventionType.ENHANCED_CHECKIN)
+                .message("Hi Samira — your team has been trying to reach you. Reply when you can; no judgement.")
+                .status(InterventionStatus.SENT)
+                .reason("Acute risk: immediate check-in required")
+                .build());
+        escalationRepo.save(EscalationRecord.builder()
+                .user(u)
+                .supportContact(null)
+                .triggeredAt(RECOVERY_START.plusDays(15).atTime(9, 15))
+                .level(EscalationLevel.LEVEL_2_ACTIVE_CONCERN)
+                .reason("Seeded demo: acute risk score 85 — welfare check coordinated.")
+                .outcomeStatus("PENDING")
+                .build());
+        cacheDemoRedis(u, 85, RecoveryState.ACUTE_RISK,
+                "[{\"factor\":\"medication_adherence_drop\",\"impact\":25,\"details\":\"88% → 0%\",\"severity\":\"HIGH\"}," +
+                "{\"factor\":\"activity_absence_streak\",\"impact\":25,\"details\":\"5 consecutive days without any activity\",\"severity\":\"HIGH\"}," +
+                "{\"factor\":\"multi_signal_synergy\",\"impact\":10,\"details\":\"3 concurrent risk indicators\",\"severity\":\"HIGH\"}]");
+        log.info("  ✓ Samira Okonkwo (ACUTE_RISK) seeded");
+        return u;
+    }
+
+    private RecoveryUser seedCaseyRecovering() {
+        RecoveryUser u = userRepo.save(RecoveryUser.builder()
+                .displayName("Casey Reid")
+                .recoveryStartDate(RECOVERY_START)
+                .currentState(RecoveryState.RECOVERING)
+                .currentRiskScore(36)
+                .reentryModeActive(false)
+                .baselineIntakeNotes("Seeded demo — post-crisis improvement; scores trending down for three assessments.")
+                .build());
+        for (int d = WINDOW_START_OFFSET; d <= WINDOW_END_OFFSET; d++) {
+            boolean good = d >= WINDOW_START_OFFSET + 3;
+            saveSignal(u, RECOVERY_START.plusDays(d),
+                    good, good, good, good, false, false, good, good ? 23 : 2,
+                    good ? "Back on a simple routine. One day at a time." : "Rough patch — disengaged.");
+        }
+        saveSimpleBaseline(u, 0.88, 0.9, 0.87, 0.86, 0.88, 1.0, 23.0);
+        // History: need downtrend for RECOVERING narrative (newest = lowest score)
+        saveAssessmentAt(u, RECOVERY_START.plusDays(12), 68, RecoveryState.CONCERNING,
+                "Several routine signals have deviated significantly from baseline. Risk score: 68.",
+                "Earlier in the week, multiple signals off track.",
+                "[]");
+        saveAssessmentAt(u, RECOVERY_START.plusDays(14), 48, RecoveryState.CONCERNING,
+                "Several routine signals have deviated significantly from baseline. Risk score: 48.",
+                "Improvement started — check-ins and meds returning.",
+                "[]");
+        saveAssessmentAt(u, RECOVERY_START.plusDays(15), 36, RecoveryState.RECOVERING,
+                "Recovery trajectory is improving. Signals are returning toward baseline.",
+                "Third consecutive down assessment; routine rebuilding.",
+                "[]");
+        cacheDemoRedis(u, 36, RecoveryState.RECOVERING,
+                "[{\"factor\":\"activity_absence_streak\",\"impact\":20,\"details\":\"0 consecutive days without any activity\",\"severity\":\"MEDIUM\"}]");
+        log.info("  ✓ Casey Reid (RECOVERING) seeded");
+        return u;
+    }
+
+    private void saveSimpleBaseline(RecoveryUser user,
+                                    double morning, double med, double meal, double activity,
+                                    double evening, double appt, double sleepAvg) {
+        baselineRepo.save(BaselineSnapshot.builder()
+                .user(user)
+                .morningCheckInRate(morning)
+                .medicationAdherenceRate(med)
+                .mealLoggingRate(meal)
+                .activityRate(activity)
+                .appointmentAttendanceRate(appt)
+                .eveningCheckInRate(evening)
+                .averageSleepStartHour(sleepAvg)
+                .stableWindowDays(5)
+                .summaryJson("{\"note\":\"Seeded demo baseline\"}")
+                .active(true)
+                .build());
+    }
+
+    private void saveAssessmentAt(RecoveryUser user, LocalDate onDay, int score, RecoveryState state,
+                                  String concise, String detail, String factorJson) {
+        assessmentRepo.save(RiskAssessment.builder()
+                .user(user)
+                .assessedAt(onDay.atTime(10, 0))
+                .riskScore(score)
+                .state(state)
+                .conciseSummary(concise)
+                .detailedExplanation(detail)
+                .factorBreakdownJson(factorJson)
+                .build());
+    }
+
+    private void cacheDemoRedis(RecoveryUser user, int score, RecoveryState state, String factorJson) {
+        user.setCurrentState(state);
+        user.setCurrentRiskScore(score);
+        userRepo.save(user);
+        redisState.cacheRiskState(user.getId(), score, state.name(), factorJson);
     }
 
     // ── Helper records ────────────────────────────────────────────────────────

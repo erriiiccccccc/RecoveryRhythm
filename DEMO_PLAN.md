@@ -1,10 +1,10 @@
-# Recovery Rhythm — Demonstration script (split-screen, Eric Ng)
+# Recovery Rhythm — Demo script (split-screen)
 
-This guide matches the **current implementation** (`RiskEngine`, `BaselineEngine`, `SignalService`, static UIs). Read **§Critical engine rules** first — without them, scores can look “wrong” on camera.
+**Two paths:** (1) click through the **seeded** roster in the clinician list to show every **state**; (2) **Add patient → Eric** for a **live** story. The notes below follow the current app behaviour (risk window, baseline).
 
 ---
 
-## Critical engine rules (audit — do not skip)
+## Before you record (quick checks)
 
 ### 1) Risk uses the **real calendar** for its window
 
@@ -198,12 +198,14 @@ Repeat strong day; optional: schedule + attend an appointment. **Approve** → *
 
 ---
 
-## 6. Optional: **Alex Thompson** (depth, ~30s)
+## 6. Seeded roster (optional, ~1 min)
 
-- Select **Alex Thompson** in the roster (seeded; **not** a patient login — no `loginEmail` in seed).  
-- State: seed sets **CONCERNING** / risk **58**; history and interventions are **pre-seeded** for the **April 2026** timeline.  
-- If you **Run Assessment** for Alex on a real-world date **outside** the seeded 7-day rolling window, the **recomputed** score can **diverge** from the narrative — either **skip** the button and talk from the **dashboard summary**, or set system date in the **mid–late April 2026** range for a matching live recompute.  
-- Switch back to **Eric** for the **live** path.
+The app starts with **five** patients (no logins) — one per state. In the list, show **Morgan** → **Samira** so the **badges** land in order: **Stable → Drifting → Concerning → Acute → Recovering** (order in the UI may be alphabetical: still fine).
+
+- **Alex** has the **richest** history (episodes, interventions).  
+- **Live recompute** on seed data works best with the machine date in **~April 2026**; otherwise use the **dashboard text** and skip hammering **Run Assessment**.  
+
+Then switch to **Eric** (or your created patient) for the **main** live demo.
 
 ---
 
@@ -230,4 +232,4 @@ Repeat strong day; optional: schedule + attend an appointment. **Approve** → *
 
 ---
 
-**Good luck** — align **log dates to this week** and set **baseline** once, and the **Eric** story becomes explainable on camera.
+**Good luck** — use the **seeded** names to show **states** fast, then **Eric** (or a fresh patient) for the main story. Align **log dates to this week** and **baseline** once for live assess.
