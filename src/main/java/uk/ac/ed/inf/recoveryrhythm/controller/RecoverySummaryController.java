@@ -14,6 +14,7 @@ import uk.ac.ed.inf.recoveryrhythm.service.*;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,14 +28,13 @@ public class RecoverySummaryController {
 
     private final UserService userService;
     private final BaselineService baselineService;
-    private final RiskService riskService;
     private final EpisodeService episodeService;
     private final InterventionService interventionService;
     private final EscalationService escalationService;
     private final SignalService signalService;
     private final EvidenceService evidenceService;
+    private final S3StorageService s3StorageService;
     private final RiskAssessmentRepository assessmentRepo;
-    private final RedisStateService redisState;
     private final StateEngine stateEngine;
     private final ObjectMapper objectMapper;
 
@@ -81,7 +81,18 @@ public class RecoverySummaryController {
         // Recent signals (last 7 days)
         List<DailySignalResponse> recentSignals = signalService.getRecentSignals(userId);
         List<DailySignalLog> recentSignalEntities = signalService.getRecentSignalEntities(user, 7);
+        int loggedDaysCount = signalService.countLoggedDays(user);
         EvidenceService.UserEvidenceSummary evidenceSummary = evidenceService.summarizeUserEvidence(recentSignalEntities);
+        String profilePhotoBase64 = null;
+        if (user.getProfilePhotoObjectKey() != null) {
+            try {
+                profilePhotoBase64 = Base64.getEncoder().encodeToString(
+                        s3StorageService.getEvidenceObject(user.getProfilePhotoObjectKey())
+                );
+            } catch (Exception ex) {
+                log.warn("Could not load profile photo for {}: {}", user.getId(), ex.getMessage());
+            }
+        }
 
         // Days since recovery start
         long daysSince = ChronoUnit.DAYS.between(user.getRecoveryStartDate(), LocalDate.now());
@@ -98,6 +109,7 @@ public class RecoverySummaryController {
                 .displayName(user.getDisplayName())
                 .recoveryStartDate(user.getRecoveryStartDate())
                 .daysSinceRecoveryStart((int) daysSince)
+                .loggedDaysCount(loggedDaysCount)
                 .currentState(user.getCurrentState())
                 .currentRiskScore(user.getCurrentRiskScore())
                 .stateLabel(stateEngine.stateLabel(user.getCurrentState()))
@@ -116,6 +128,17 @@ public class RecoverySummaryController {
                 .reentryModeActive(user.isReentryModeActive())
                 .reentryPrompt(reentryPrompt)
                 .recentSignals(recentSignals)
+                .baselineIntakeNotes(user.getBaselineIntakeNotes())
+                .typicalSleepStartHour(user.getTypicalSleepStartHour())
+                .expectedActivityDaysPerWeek(user.getExpectedActivityDaysPerWeek())
+                .expectedMedicationDosesPerDay(user.getExpectedMedicationDosesPerDay())
+                .expectedMedicationSchedule(user.getExpectedMedicationSchedule())
+                .expectedMealsPerDay(user.getExpectedMealsPerDay())
+                .expectedActivityType(user.getExpectedActivityType())
+                .expectedSleepTarget(user.getExpectedSleepTarget())
+                .baselineReferenceSource(user.getBaselineReferenceSource())
+                .profilePhotoMimeType(user.getProfilePhotoMimeType())
+                .profilePhotoBase64(profilePhotoBase64)
                 .pendingEvidenceCount(evidenceSummary.pendingCount())
                 .approvedEvidenceCount(evidenceSummary.approvedCount())
                 .deniedEvidenceCount(evidenceSummary.deniedCount())

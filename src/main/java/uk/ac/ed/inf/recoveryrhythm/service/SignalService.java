@@ -33,18 +33,25 @@ public class SignalService {
         RecoveryUser user = userService.requireUser(userId);
         LocalDate logDate = req.getLogDate() != null ? req.getLogDate() : LocalDate.now();
 
-        DailySignalLog log_ = signalRepo.findByUserAndLogDate(user, logDate)
-                .orElseGet(() -> DailySignalLog.builder().user(user).logDate(logDate).build());
+        DailySignalLog existing = signalRepo.findByUserAndLogDate(user, logDate).orElse(null);
+        DailySignalLog log_ = existing != null
+                ? existing
+                : DailySignalLog.builder().user(user).logDate(logDate).build();
 
-        log_.setMorningCheckInCompleted(req.isMorningCheckInCompleted());
-        log_.setMedicationTaken(req.isMedicationTaken());
-        log_.setMealLogged(req.isMealLogged());
-        log_.setActivityLogged(req.isActivityLogged());
-        log_.setAppointmentScheduled(req.isAppointmentScheduled());
-        log_.setAppointmentAttended(req.isAppointmentAttended());
-        log_.setEveningCheckInCompleted(req.isEveningCheckInCompleted());
-        log_.setSleepStartHour(req.getSleepStartHour());
-        log_.setNotes(req.getNotes());
+        // Same-day updates are additive: once a signal is logged true, it stays true.
+        log_.setMorningCheckInCompleted(log_.isMorningCheckInCompleted() || req.isMorningCheckInCompleted());
+        log_.setMedicationTaken(log_.isMedicationTaken() || req.isMedicationTaken());
+        log_.setMealLogged(log_.isMealLogged() || req.isMealLogged());
+        log_.setActivityLogged(log_.isActivityLogged() || req.isActivityLogged());
+        log_.setAppointmentScheduled(log_.isAppointmentScheduled() || req.isAppointmentScheduled());
+        log_.setAppointmentAttended(log_.isAppointmentAttended() || req.isAppointmentAttended());
+        log_.setEveningCheckInCompleted(log_.isEveningCheckInCompleted() || req.isEveningCheckInCompleted());
+        if (req.getSleepStartHour() != null) {
+            log_.setSleepStartHour(req.getSleepStartHour());
+        }
+        if (req.getNotes() != null) {
+            log_.setNotes(req.getNotes());
+        }
         log_.setVerificationState(DailyVerificationState.PENDING);
 
         log_ = signalRepo.save(log_);
@@ -53,20 +60,20 @@ public class SignalService {
 
         redisStateService.updateSignalStreaks(
                 userId,
-                req.isMorningCheckInCompleted(),
-                req.isActivityLogged(),
-                req.isEveningCheckInCompleted(),
-                req.isMedicationTaken(),
-                req.isMealLogged()
+                log_.isMorningCheckInCompleted(),
+                log_.isActivityLogged(),
+                log_.isEveningCheckInCompleted(),
+                log_.isMedicationTaken(),
+                log_.isMealLogged()
         );
 
         kafkaPublisher.publishSignalLogged(userId, Map.of(
                 "logDate", logDate.toString(),
-                "morningCheckIn", req.isMorningCheckInCompleted(),
-                "medicationTaken", req.isMedicationTaken(),
-                "mealLogged", req.isMealLogged(),
-                "activityLogged", req.isActivityLogged(),
-                "eveningCheckIn", req.isEveningCheckInCompleted()
+                "morningCheckIn", log_.isMorningCheckInCompleted(),
+                "medicationTaken", log_.isMedicationTaken(),
+                "mealLogged", log_.isMealLogged(),
+                "activityLogged", log_.isActivityLogged(),
+                "eveningCheckIn", log_.isEveningCheckInCompleted()
         ));
 
         log.info("Signal logged for user {} on {}", user.getDisplayName(), logDate);
@@ -92,6 +99,10 @@ public class SignalService {
 
     public List<DailySignalLog> getStableWindowEntities(RecoveryUser user, LocalDate from, LocalDate to) {
         return signalRepo.findByUserAndLogDateBetweenOrderByLogDateAsc(user, from, to);
+    }
+
+    public int countLoggedDays(RecoveryUser user) {
+        return (int) signalRepo.countByUser(user);
     }
 
     public DailySignalResponse toResponse(DailySignalLog s) {

@@ -17,6 +17,7 @@ public class RecoverySummaryResponse {
     private String displayName;
     private LocalDate recoveryStartDate;
     private int daysSinceRecoveryStart;
+    private int loggedDaysCount;
 
     private RecoveryState currentState;
     private int currentRiskScore;
@@ -41,6 +42,17 @@ public class RecoverySummaryResponse {
     private String reentryPrompt;
 
     private List<DailySignalResponse> recentSignals;
+    private String baselineIntakeNotes;
+    private Integer typicalSleepStartHour;
+    private Integer expectedActivityDaysPerWeek;
+    private Integer expectedMedicationDosesPerDay;
+    private String expectedMedicationSchedule;
+    private Integer expectedMealsPerDay;
+    private String expectedActivityType;
+    private String expectedSleepTarget;
+    private String baselineReferenceSource;
+    private String profilePhotoMimeType;
+    private String profilePhotoBase64;
     private int pendingEvidenceCount;
     private int approvedEvidenceCount;
     private int deniedEvidenceCount;

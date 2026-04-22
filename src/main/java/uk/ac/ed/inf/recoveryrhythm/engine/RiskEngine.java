@@ -95,7 +95,7 @@ public class RiskEngine {
         // ── Factor 1: Morning check-in drop ──────────────────────────────────
         if (baseline != null && !shortWindowLogs.isEmpty()) {
             double baselineMorning = baseline.getMorningCheckInRate();
-            double recentMorning = rate(shortWindowLogs, DailySignalLog::isMorningCheckInCompleted);
+            double recentMorning = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MORNING_CHECKIN, DailySignalLog::isMorningCheckInCompleted));
             double drop = baselineMorning - recentMorning;
             if (drop > 0.30) {
                 int impact = drop > 0.50 ? 20 : 15;
@@ -201,7 +201,7 @@ public class RiskEngine {
         // ── Factor 7: Evening check-in decline ───────────────────────────────
         if (baseline != null && !shortWindowLogs.isEmpty()) {
             double baselineEvening = baseline.getEveningCheckInRate();
-            double recentEvening = rate(shortWindowLogs, DailySignalLog::isEveningCheckInCompleted);
+            double recentEvening = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.EVENING_CHECKIN, DailySignalLog::isEveningCheckInCompleted));
             double drop = baselineEvening - recentEvening;
             if (drop > 0.30) {
                 factors.add(ContributingFactor.builder()
@@ -414,12 +414,18 @@ public class RiskEngine {
 
     private boolean isFullyEngaged(DailySignalLog log) {
         return log.isMorningCheckInCompleted()
+                && isEffectiveClaim(log, EvidenceSignalType.MORNING_CHECKIN, DailySignalLog::isMorningCheckInCompleted)
                 && isEffectiveClaim(log, EvidenceSignalType.MEDICATION, DailySignalLog::isMedicationTaken)
                 && isEffectiveClaim(log, EvidenceSignalType.MEAL, DailySignalLog::isMealLogged)
                 && isEffectiveClaim(log, EvidenceSignalType.ACTIVITY, DailySignalLog::isActivityLogged)
-                && log.isEveningCheckInCompleted();
+                && isEffectiveClaim(log, EvidenceSignalType.EVENING_CHECKIN, DailySignalLog::isEveningCheckInCompleted);
     }
 
+    /**
+     * A checked-in signal only contributes to risk rates after verification:
+     * either the day is fully verified, or this signal type has APPROVED evidence.
+     * Pending evidence does not count as an effective (verified) claim.
+     */
     private boolean isEffectiveClaim(
             DailySignalLog log,
             EvidenceSignalType signalType,
@@ -431,7 +437,8 @@ public class RiskEngine {
         if (log.getVerificationState() == DailyVerificationState.VERIFIED) {
             return true;
         }
-        return evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(log, signalType, VerificationStatus.APPROVED);
+        long approved = evidenceRepo.countByDailySignalLogAndSignalTypeAndStatus(log, signalType, VerificationStatus.APPROVED);
+        return approved >= requiredApprovalCount(log.getUser(), signalType);
     }
 
     private int computeEffectiveActivityMissStreak(List<DailySignalLog> logs) {
@@ -462,5 +469,15 @@ public class RiskEngine {
         } catch (JsonProcessingException e) {
             return "[]";
         }
+    }
+
+    private int requiredApprovalCount(RecoveryUser user, EvidenceSignalType signalType) {
+        if (signalType == EvidenceSignalType.MEAL) {
+            Integer expectedMeals = user.getExpectedMealsPerDay();
+            if (expectedMeals != null && expectedMeals >= 3) {
+                return 3;
+            }
+        }
+        return 1;
     }
 }

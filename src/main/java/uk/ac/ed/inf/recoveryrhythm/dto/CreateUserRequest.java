@@ -12,6 +12,19 @@ public class CreateUserRequest {
     @NotBlank
     private String displayName;
 
+    private String loginEmail;
+    private String loginPassword;
+
     @NotNull
     private LocalDate recoveryStartDate;
+
+    private String baselineIntakeNotes;
+    private Integer typicalSleepStartHour;
+    private Integer expectedActivityDaysPerWeek;
+    private Integer expectedMedicationDosesPerDay;
+    private String expectedMedicationSchedule;
+    private Integer expectedMealsPerDay;
+    private String expectedActivityType;
+    private String expectedSleepTarget;
+    private String baselineReferenceSource;
 }

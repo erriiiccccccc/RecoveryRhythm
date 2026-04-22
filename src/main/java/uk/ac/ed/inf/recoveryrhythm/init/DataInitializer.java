@@ -8,8 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import uk.ac.ed.inf.recoveryrhythm.entity.*;
 import uk.ac.ed.inf.recoveryrhythm.repository.*;
 import uk.ac.ed.inf.recoveryrhythm.service.*;
-import uk.ac.ed.inf.recoveryrhythm.engine.BaselineEngine;
-import uk.ac.ed.inf.recoveryrhythm.engine.RiskEngine;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -41,9 +39,6 @@ public class DataInitializer implements CommandLineRunner {
     private final InterventionRecordRepository interventionRepo;
     private final EscalationRecordRepository escalationRepo;
 
-    private final BaselineEngine baselineEngine;
-    private final RiskService riskService;
-    private final BaselineService baselineService;
     private final RedisStateService redisState;
 
     private static final LocalDate RECOVERY_START = LocalDate.of(2026, 4, 7);
@@ -64,15 +59,13 @@ public class DataInitializer implements CommandLineRunner {
         seedInterventions(alex);
         seedEscalation(alex);
         setAlexCurrentState(alex);
-        RecoveryUser eric = createEric();
 
         log.info("══════════════════════════════════════════════════════════");
         log.info("  Demo data seeded.");
         log.info("  Alex Thompson ID : {}", alex.getId());
-        log.info("  Eric Ng ID       : {}", eric.getId());
         log.info("  Dashboard: http://localhost:8080/login.html");
         log.info("  Clinician login  : clinician@rr.nhs.uk / demo123");
-        log.info("  Patient login    : eric@patient.com / demo123");
+        log.info("  Patient login    : create in clinician portal (e.g. eric@patient.com / demo123)");
         log.info("══════════════════════════════════════════════════════════");
     }
 
@@ -302,29 +295,6 @@ public class DataInitializer implements CommandLineRunner {
 
         redisState.setRolling7Count(alex.getId(), "med_taken", 5);
         redisState.setRolling7Count(alex.getId(), "meal_logged", 4);
-    }
-
-    private RecoveryUser createEric() {
-        RecoveryUser eric = RecoveryUser.builder()
-                .displayName("Eric Ng")
-                .recoveryStartDate(LocalDate.of(2026, 4, 15))
-                .currentState(RecoveryState.STABLE)
-                .currentRiskScore(0)
-                .reentryModeActive(false)
-                .build();
-        eric = userRepo.save(eric);
-
-        supportContactRepo.save(SupportContact.builder()
-                .user(eric)
-                .name("Dr. Sarah Chen")
-                .relationship("Recovery Nurse")
-                .contactChannel("EMAIL")
-                .contactValue("s.chen@rr.nhs.uk")
-                .escalationEnabled(true)
-                .build());
-
-        log.info("  ✓ Eric Ng created (fresh patient — no signal history yet)");
-        return eric;
     }
 
     // ── Helper records ────────────────────────────────────────────────────────

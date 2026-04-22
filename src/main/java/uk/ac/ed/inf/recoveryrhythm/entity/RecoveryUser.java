@@ -22,6 +22,12 @@ public class RecoveryUser {
     @Column(nullable = false)
     private String displayName;
 
+    @Column(length = 120, unique = true)
+    private String loginEmail;
+
+    @Column(length = 120)
+    private String loginPassword;
+
     @Column(nullable = false)
     private LocalDate recoveryStartDate;
 
@@ -35,6 +41,35 @@ public class RecoveryUser {
 
     @Builder.Default
     private boolean reentryModeActive = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String baselineIntakeNotes;
+
+    private Integer typicalSleepStartHour;
+
+    private Integer expectedActivityDaysPerWeek;
+
+    private Integer expectedMedicationDosesPerDay;
+
+    @Column(length = 255)
+    private String expectedMedicationSchedule;
+
+    private Integer expectedMealsPerDay;
+
+    @Column(length = 120)
+    private String expectedActivityType;
+
+    @Column(length = 120)
+    private String expectedSleepTarget;
+
+    @Column(length = 120)
+    private String baselineReferenceSource;
+
+    @Column(length = 255)
+    private String profilePhotoObjectKey;
+
+    @Column(length = 100)
+    private String profilePhotoMimeType;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

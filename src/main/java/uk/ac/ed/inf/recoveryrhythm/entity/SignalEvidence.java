@@ -33,9 +33,8 @@ public class SignalEvidence {
     @Column(nullable = false, length = 100)
     private String mimeType;
 
-    @Lob
-    @Column(nullable = false, columnDefinition = "bytea")
-    private byte[] imageData;
+    @Column(nullable = false, length = 255)
+    private String objectKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)

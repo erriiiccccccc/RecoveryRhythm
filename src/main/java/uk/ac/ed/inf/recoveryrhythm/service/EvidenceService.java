@@ -23,12 +23,13 @@ public class EvidenceService {
     private final DailySignalLogRepository signalRepo;
     private final UserService userService;
     private final KafkaEventPublisher kafkaPublisher;
+    private final S3StorageService s3StorageService;
 
     @Transactional
     public List<SignalEvidenceResponse> attachEvidenceToSignal(
             UUID userId,
             UUID signalLogId,
-            Map<EvidenceSignalType, MultipartFile> filesByType
+            List<EvidenceUpload> uploads
     ) {
         RecoveryUser user = userService.requireUser(userId);
         DailySignalLog logEntity = signalRepo.findById(signalLogId)
@@ -39,8 +40,8 @@ public class EvidenceService {
         }
 
         List<SignalEvidence> created = new ArrayList<>();
-        for (Map.Entry<EvidenceSignalType, MultipartFile> entry : filesByType.entrySet()) {
-            MultipartFile file = entry.getValue();
+        for (EvidenceUpload upload : uploads) {
+            MultipartFile file = upload.file();
             if (file == null || file.isEmpty()) {
                 continue;
             }
@@ -49,18 +50,25 @@ public class EvidenceService {
                 throw new IllegalArgumentException("Only image uploads are supported for evidence");
             }
             try {
+                byte[] fileBytes = file.getBytes();
+                String objectKey = s3StorageService.putEvidenceObject(
+                        userId,
+                        file.getOriginalFilename(),
+                        mime,
+                        fileBytes
+                );
                 SignalEvidence evidence = SignalEvidence.builder()
                         .user(user)
                         .dailySignalLog(logEntity)
-                        .signalType(entry.getKey())
+                        .signalType(upload.signalType())
                         .mimeType(mime)
-                        .imageData(file.getBytes())
+                        .objectKey(objectKey)
                         .status(VerificationStatus.PENDING)
                         .build();
                 created.add(evidenceRepo.save(evidence));
                 kafkaPublisher.publishSignalLogged(userId, Map.of(
                         "eventType", "evidence.uploaded",
-                        "signalType", entry.getKey().name(),
+                        "signalType", upload.signalType().name(),
                         "logDate", logEntity.getLogDate().toString()
                 ));
             } catch (IOException e) {
@@ -131,7 +139,8 @@ public class EvidenceService {
     }
 
     public boolean isSignalClaimApproved(DailySignalLog signalLog, EvidenceSignalType signalType) {
-        return evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(signalLog, signalType, VerificationStatus.APPROVED);
+        long approved = evidenceRepo.countByDailySignalLogAndSignalTypeAndStatus(signalLog, signalType, VerificationStatus.APPROVED);
+        return approved >= requiredApprovalCount(signalLog.getUser(), signalType);
     }
 
     public long countDeniedEvidence(RecoveryUser user, java.time.LocalDate from, java.time.LocalDate to) {
@@ -141,9 +150,11 @@ public class EvidenceService {
     @Transactional
     public void refreshVerificationState(DailySignalLog signalLog) {
         Set<EvidenceSignalType> requiredClaims = new HashSet<>();
+        if (signalLog.isMorningCheckInCompleted()) requiredClaims.add(EvidenceSignalType.MORNING_CHECKIN);
         if (signalLog.isMedicationTaken()) requiredClaims.add(EvidenceSignalType.MEDICATION);
         if (signalLog.isMealLogged()) requiredClaims.add(EvidenceSignalType.MEAL);
         if (signalLog.isActivityLogged()) requiredClaims.add(EvidenceSignalType.ACTIVITY);
+        if (signalLog.isEveningCheckInCompleted()) requiredClaims.add(EvidenceSignalType.EVENING_CHECKIN);
 
         if (requiredClaims.isEmpty()) {
             signalLog.setVerificationState(DailyVerificationState.VERIFIED);
@@ -154,7 +165,8 @@ public class EvidenceService {
         int pendingCount = 0;
         int deniedOrMissingCount = 0;
         for (EvidenceSignalType type : requiredClaims) {
-            boolean approved = evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(signalLog, type, VerificationStatus.APPROVED);
+            long approvedEvidence = evidenceRepo.countByDailySignalLogAndSignalTypeAndStatus(signalLog, type, VerificationStatus.APPROVED);
+            boolean approved = approvedEvidence >= requiredApprovalCount(signalLog.getUser(), type);
             boolean pending = evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(signalLog, type, VerificationStatus.PENDING);
             boolean denied = evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(signalLog, type, VerificationStatus.DENIED);
             if (approved) approvedCount++;
@@ -175,6 +187,13 @@ public class EvidenceService {
     }
 
     private SignalEvidenceResponse toResponse(SignalEvidence evidence) {
+        String imageBase64 = "";
+        try {
+            imageBase64 = Base64.getEncoder().encodeToString(
+                    s3StorageService.getEvidenceObject(evidence.getObjectKey()));
+        } catch (Exception ex) {
+            log.warn("Could not load evidence object {} from S3: {}", evidence.getObjectKey(), ex.getMessage());
+        }
         return SignalEvidenceResponse.builder()
                 .id(evidence.getId())
                 .userId(evidence.getUser().getId())
@@ -182,7 +201,7 @@ public class EvidenceService {
                 .logDate(evidence.getDailySignalLog().getLogDate())
                 .signalType(evidence.getSignalType())
                 .mimeType(evidence.getMimeType())
-                .imageBase64(Base64.getEncoder().encodeToString(evidence.getImageData()))
+                .imageBase64(imageBase64)
                 .status(evidence.getStatus())
                 .clinicianName(evidence.getClinicianName())
                 .verificationReason(evidence.getVerificationReason())
@@ -193,4 +212,15 @@ public class EvidenceService {
 
     public record EvidenceRollup(DailyVerificationState state, int pendingCount, int deniedCount) {}
     public record UserEvidenceSummary(int pendingCount, int approvedCount, int deniedCount) {}
+    public record EvidenceUpload(EvidenceSignalType signalType, MultipartFile file) {}
+
+    private int requiredApprovalCount(RecoveryUser user, EvidenceSignalType signalType) {
+        if (signalType == EvidenceSignalType.MEAL) {
+            Integer expected = user.getExpectedMealsPerDay();
+            if (expected != null && expected >= 3) {
+                return 3;
+            }
+        }
+        return 1;
+    }
 }

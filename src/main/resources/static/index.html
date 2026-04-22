@@ -596,7 +596,12 @@ async function runRiskAssessment() {
     await loadDashboard(currentUserId);
     await loadUsers();
   } catch(e) {
-    alert('Assessment failed: ' + e.message);
+    document.getElementById('loadingState').innerHTML = `
+      <div style="text-align:center; color:var(--state-acute)">
+        <div style="font-size:1.2rem">Assessment failed: ${e.message}</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text-muted)">Please try again.</div>
+      </div>`;
+    show('loadingState');
   } finally {
     btn.textContent = 'Run Assessment';
     btn.disabled = false;

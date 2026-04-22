@@ -13,10 +13,22 @@ import java.util.UUID;
 public class UserResponse {
     private UUID id;
     private String displayName;
+    private String loginEmail;
     private LocalDate recoveryStartDate;
     private RecoveryState currentState;
     private int currentRiskScore;
     private boolean reentryModeActive;
+    private String baselineIntakeNotes;
+    private Integer typicalSleepStartHour;
+    private Integer expectedActivityDaysPerWeek;
+    private Integer expectedMedicationDosesPerDay;
+    private String expectedMedicationSchedule;
+    private Integer expectedMealsPerDay;
+    private String expectedActivityType;
+    private String expectedSleepTarget;
+    private String baselineReferenceSource;
+    private String profilePhotoMimeType;
+    private String profilePhotoBase64;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

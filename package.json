@@ -1,0 +1,16 @@
+{
+  "name": "recovery-rhythm-dev-scripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Convenience scripts for local development",
+  "scripts": {
+    "dev": "npm run dev:infra-up && npm run dev:app",
+    "dev:app": "mvn spring-boot:run",
+    "dev:infra-up": "docker compose up -d postgres redis kafka rabbitmq localstack",
+    "dev:infra-down": "docker compose stop postgres redis kafka rabbitmq localstack",
+    "dev:infra-reset": "docker compose down -v",
+    "dev:docker-app": "docker compose up -d app",
+    "build": "mvn clean package",
+    "test": "mvn test"
+  }
+}

@@ -62,6 +62,11 @@ spring:
       fail-on-unknown-properties: false
     time-zone: UTC
 
+  servlet:
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 40MB
+
 server:
   port: 8080
 
@@ -73,6 +78,12 @@ logging:
     org.hibernate: WARN
 
 recovery-rhythm:
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:4566}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:recovery-rhythm-evidence}
+    access-key: ${AWS_ACCESS_KEY_ID:test}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:test}
   baseline:
     stable-window-days: 5
     minimum-days-required: 3

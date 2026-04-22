@@ -14,7 +14,7 @@ import uk.ac.ed.inf.recoveryrhythm.entity.EvidenceSignalType;
 import uk.ac.ed.inf.recoveryrhythm.service.EvidenceService;
 import uk.ac.ed.inf.recoveryrhythm.service.SignalService;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,18 +40,26 @@ public class SignalController {
     public ResponseEntity<Map<String, Object>> logSignalWithEvidence(
             @PathVariable UUID userId,
             @RequestPart("payload") String payload,
+            @RequestPart(value = "morningEvidence", required = false) MultipartFile morningEvidence,
             @RequestPart(value = "medicationEvidence", required = false) MultipartFile medicationEvidence,
             @RequestPart(value = "mealEvidence", required = false) MultipartFile mealEvidence,
-            @RequestPart(value = "activityEvidence", required = false) MultipartFile activityEvidence
+            @RequestPart(value = "mealEvidence2", required = false) MultipartFile mealEvidence2,
+            @RequestPart(value = "mealEvidence3", required = false) MultipartFile mealEvidence3,
+            @RequestPart(value = "activityEvidence", required = false) MultipartFile activityEvidence,
+            @RequestPart(value = "eveningEvidence", required = false) MultipartFile eveningEvidence
     ) throws Exception {
         DailySignalRequest req = objectMapper.readValue(payload, DailySignalRequest.class);
         DailySignalResponse signalResponse = signalService.logDailySignal(userId, req);
 
-        Map<EvidenceSignalType, MultipartFile> files = new HashMap<>();
-        files.put(EvidenceSignalType.MEDICATION, medicationEvidence);
-        files.put(EvidenceSignalType.MEAL, mealEvidence);
-        files.put(EvidenceSignalType.ACTIVITY, activityEvidence);
-        List<SignalEvidenceResponse> evidence = evidenceService.attachEvidenceToSignal(userId, signalResponse.getId(), files);
+        List<EvidenceService.EvidenceUpload> uploads = new ArrayList<>();
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.MORNING_CHECKIN, morningEvidence));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.MEDICATION, medicationEvidence));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.MEAL, mealEvidence));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.MEAL, mealEvidence2));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.MEAL, mealEvidence3));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.ACTIVITY, activityEvidence));
+        uploads.add(new EvidenceService.EvidenceUpload(EvidenceSignalType.EVENING_CHECKIN, eveningEvidence));
+        List<SignalEvidenceResponse> evidence = evidenceService.attachEvidenceToSignal(userId, signalResponse.getId(), uploads);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "signal", signalResponse,

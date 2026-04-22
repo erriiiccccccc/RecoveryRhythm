@@ -139,6 +139,16 @@
     background: rgba(229,230,250,0.07);
     border-color: rgba(229,230,250,0.38);
   }
+  .signal-toggle.locked {
+    background: rgba(46,213,115,0.1);
+    border-color: rgba(46,213,115,0.3);
+    cursor: not-allowed;
+    opacity: 0.9;
+  }
+  .signal-toggle.locked:hover {
+    transform: none;
+    border-color: rgba(46,213,115,0.3);
+  }
   .sig-icon {
     width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
     background: rgba(111,110,106,0.15);
@@ -149,6 +159,31 @@
   .sig-text { flex: 1; min-width: 0; }
   .sig-label { font-size: 0.9375rem; font-weight: 600; }
   .sig-hint  { font-size: 0.78rem; color: var(--text-dim); margin-top: 1px; }
+  .sig-detail-row { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .sig-detail-chip {
+    border: 1px solid var(--border);
+    background: rgba(111,110,106,0.08);
+    color: var(--text-dim);
+    border-radius: 100px;
+    padding: 4px 8px;
+    font-size: 0.68rem;
+    cursor: pointer;
+  }
+  .sig-detail-chip.active {
+    border-color: rgba(184,185,232,0.42);
+    background: rgba(184,185,232,0.16);
+    color: var(--accent-mid);
+  }
+  .sig-detail-input {
+    margin-top: 7px;
+    width: 100%;
+    border: 1px solid var(--border);
+    background: rgba(111,110,106,0.08);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 0.75rem;
+  }
   .sig-check {
     width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
     border: 2px solid var(--border);
@@ -159,6 +194,43 @@
     background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
     border-color: transparent; color: #0d0c18;
   }
+  .sig-proof {
+    min-width: 170px;
+    max-width: 170px;
+    text-align: right;
+  }
+  .sig-proof input[type="file"] {
+    display: none;
+  }
+  .proof-btn {
+    display: inline-block;
+    border: 1px solid var(--border);
+    background: rgba(111,110,106,0.12);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .proof-btn:hover { border-color: var(--border-h); color: var(--text); }
+  .signal-toggle.locked .proof-btn {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .proof-status {
+    margin-top: 4px;
+    font-size: 0.66rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .proof-status.required { color: #ffb347; }
+  .proof-status.ready { color: var(--stable); }
 
   /* ── Section divider ── */
   .section-divider { height: 1px; background: var(--border); margin: 18px 0; }
@@ -195,6 +267,7 @@
   }
   .sleep-select:focus { border-color: var(--border-h); }
   .sleep-select option { background: #1c1b28; }
+  .sleep-target-hint { font-size: 0.75rem; color: var(--muted); margin-bottom: 8px; }
 
   /* ── Notes ── */
   .notes-details summary {
@@ -215,40 +288,6 @@
   .notes-ta:focus { border-color: var(--border-h); }
   .notes-ta::placeholder { color: var(--muted); }
 
-  /* ── Evidence upload ── */
-  .evidence-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin-top: 10px;
-  }
-  .evidence-item {
-    padding: 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: rgba(111,110,106,0.08);
-  }
-  .evidence-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-  .evidence-label { font-size: 0.8rem; color: var(--text-dim); }
-  .evidence-label strong { color: var(--text); }
-  .evidence-item input[type="file"] {
-    margin-top: 8px;
-    width: 100%;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-  .evidence-status {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--accent-mid);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
 
   /* ── Progress bar (count) ── */
   .progress-row {
@@ -343,6 +382,53 @@
   .card:nth-child(1) { animation-delay: 0.05s; }
   .card:nth-child(2) { animation-delay: 0.10s; }
   .card:nth-child(3) { animation-delay: 0.15s; }
+
+  /* ── App popup ── */
+  .app-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    padding: 16px;
+  }
+  .app-popup-backdrop.show { display: flex; }
+  .app-popup {
+    width: 100%;
+    max-width: 420px;
+    background: #1c1b28;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .app-popup-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--accent-mid);
+    margin-bottom: 6px;
+  }
+  .app-popup-msg {
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    line-height: 1.55;
+  }
+  .app-popup-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .app-popup-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -383,7 +469,7 @@
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2ed573" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <div class="confirm-title">Check-in logged, Eric!</div>
-      <div class="confirm-sub">Your care team has been updated. Here's what you recorded:</div>
+      <div class="confirm-sub">Your check-in and photos are saved. A clinician will review your photo evidence; your risk score is updated after they verify, or when they run an assessment. Here&rsquo;s what you recorded:</div>
       <div class="confirm-list" id="confirmList"></div>
       <button class="btn-another" onclick="logAnother()">Log another day &rarr;</button>
     </div>
@@ -416,6 +502,12 @@
             <div class="sig-label">Morning Check-in</div>
             <div class="sig-hint">Did you complete your morning routine today?</div>
           </div>
+          <div class="sig-proof" onclick="event.stopPropagation()">
+            <label class="proof-btn" for="morningEvidence">Add Photo</label>
+            <input type="file" id="morningEvidence" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('morningEvidence','proofMorningStatus')">
+            <div class="proof-status" id="proofMorningStatus">No proof uploaded</div>
+            <div class="proof-status">Tip: morning photo with sunlight.</div>
+          </div>
           <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>
 
@@ -427,6 +519,12 @@
             <div class="sig-label">Medication Taken</div>
             <div class="sig-hint">Did you take your medication as prescribed?</div>
           </div>
+          <div class="sig-proof" onclick="event.stopPropagation()">
+            <label class="proof-btn" for="medicationEvidence">Add Photo</label>
+            <input type="file" id="medicationEvidence" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('medicationEvidence','proofMedicationStatus')">
+            <div class="proof-status" id="proofMedicationStatus">No proof uploaded</div>
+            <div class="proof-status">Tip: clear dose or med card photo.</div>
+          </div>
           <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>
 
@@ -436,7 +534,22 @@
           </div>
           <div class="sig-text">
             <div class="sig-label">Meal Logged</div>
-            <div class="sig-hint">Did you eat a meal and track it today?</div>
+            <div class="sig-hint">Did you eat and track meals today?</div>
+            <div class="sig-detail-row" onclick="event.stopPropagation()">
+              <button type="button" class="sig-detail-chip" id="chip-breakfast" onclick="toggleMealPart('breakfast')">Breakfast</button>
+              <button type="button" class="sig-detail-chip" id="chip-lunch" onclick="toggleMealPart('lunch')">Lunch</button>
+              <button type="button" class="sig-detail-chip" id="chip-dinner" onclick="toggleMealPart('dinner')">Dinner</button>
+            </div>
+          </div>
+          <div class="sig-proof" onclick="event.stopPropagation()">
+            <label class="proof-btn" for="mealEvidence">Meal 1 Photo</label>
+            <input type="file" id="mealEvidence" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('mealEvidence','proofMealStatus')">
+            <label class="proof-btn" for="mealEvidence2" style="margin-top:4px">Meal 2 Photo</label>
+            <input type="file" id="mealEvidence2" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('mealEvidence2','proofMealStatus')">
+            <label class="proof-btn" for="mealEvidence3" style="margin-top:4px">Meal 3 Photo</label>
+            <input type="file" id="mealEvidence3" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('mealEvidence3','proofMealStatus')">
+            <div class="proof-status" id="proofMealStatus">No proof uploaded</div>
+            <div class="proof-status">Tip: one clear photo per meal.</div>
           </div>
           <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>
@@ -447,7 +560,14 @@
           </div>
           <div class="sig-text">
             <div class="sig-label">Activity</div>
-            <div class="sig-hint">Any physical activity today — a walk counts!</div>
+            <div class="sig-hint">Any physical activity today (e.g. run, walk, gym)?</div>
+            <input id="activityDetail" class="sig-detail-input" type="text" placeholder="Optional: e.g. 20-minute run" onclick="event.stopPropagation()">
+          </div>
+          <div class="sig-proof" onclick="event.stopPropagation()">
+            <label class="proof-btn" for="activityEvidence">Add Photo</label>
+            <input type="file" id="activityEvidence" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('activityEvidence','proofActivityStatus')">
+            <div class="proof-status" id="proofActivityStatus">No proof uploaded</div>
+            <div class="proof-status">Tip: show run/walk/workout proof.</div>
           </div>
           <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>
@@ -459,6 +579,12 @@
           <div class="sig-text">
             <div class="sig-label">Evening Check-in</div>
             <div class="sig-hint">Did you complete your evening wind-down?</div>
+          </div>
+          <div class="sig-proof" onclick="event.stopPropagation()">
+            <label class="proof-btn" for="eveningEvidence">Add Photo</label>
+            <input type="file" id="eveningEvidence" accept="image/jpeg,image/png,image/webp" onchange="onEvidencePicked('eveningEvidence','proofEveningStatus')">
+            <div class="proof-status" id="proofEveningStatus">No proof uploaded</div>
+            <div class="proof-status">Tip: evening wind-down moment photo.</div>
           </div>
           <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         </div>
@@ -485,6 +611,7 @@
       <div class="section-divider"></div>
       <div class="section-label">Sleep</div>
       <div style="font-size:0.875rem; color:var(--text-dim); margin-bottom:10px">What time did you go to sleep?</div>
+      <div class="sleep-target-hint" id="sleepTargetHint"></div>
       <select class="sleep-select" id="sleepHour">
         <option value="">Not sure / didn't track</option>
         <option value="19">7:00 PM</option>
@@ -508,36 +635,6 @@
         <textarea class="notes-ta" id="notes" placeholder="Anything you'd like to share — how you're feeling, what was hard, what went well…"></textarea>
       </details>
 
-      <!-- Evidence -->
-      <div class="section-divider"></div>
-      <div class="section-label">Photo Proof (Clinician Verification)</div>
-      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px">
-        For Medication, Meal, and Activity claims, upload a photo to support verification.
-      </div>
-      <div class="evidence-grid">
-        <div class="evidence-item">
-          <div class="evidence-row">
-            <div class="evidence-label"><strong>Medication proof</strong> (required if Medication is checked)</div>
-            <div class="evidence-status" id="medEvidenceStatus">Optional</div>
-          </div>
-          <input type="file" id="medicationEvidence" accept="image/*">
-        </div>
-        <div class="evidence-item">
-          <div class="evidence-row">
-            <div class="evidence-label"><strong>Meal proof</strong> (required if Meal is checked)</div>
-            <div class="evidence-status" id="mealEvidenceStatus">Optional</div>
-          </div>
-          <input type="file" id="mealEvidence" accept="image/*">
-        </div>
-        <div class="evidence-item">
-          <div class="evidence-row">
-            <div class="evidence-label"><strong>Activity proof</strong> (required if Activity is checked)</div>
-            <div class="evidence-status" id="activityEvidenceStatus">Optional</div>
-          </div>
-          <input type="file" id="activityEvidence" accept="image/*">
-        </div>
-      </div>
-
       <!-- Submit -->
       <button class="btn-submit" id="submitBtn" onclick="submitCheckIn()">
         <div class="btn-spinner" id="btnSpinner"></div>
@@ -556,6 +653,16 @@
   </div><!-- /mainContent -->
 </main>
 
+<div class="app-popup-backdrop" id="appPopupBackdrop">
+  <div class="app-popup">
+    <div class="app-popup-title" id="appPopupTitle">Notice</div>
+    <div class="app-popup-msg" id="appPopupMessage"></div>
+    <div class="app-popup-actions">
+      <button class="app-popup-btn" onclick="hideAppPopup()">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Auth ─────────────────────────────────────────────────────────────
 const session = JSON.parse(sessionStorage.getItem('rr_session') || 'null');
@@ -564,8 +671,26 @@ if (!session || session.role !== 'patient') {
 }
 
 // ── State ────────────────────────────────────────────────────────────
-let ericId    = null;
+let patientId = null;
 let allSignals = [];
+let existingForDate = null;
+const lockedSignals = new Set();
+let deniedBySignal = {};
+let patientProfile = null;
+const SIGNAL_META = {
+  morningCheckInCompleted: { toggleId: 'tog-morning', inputIds: ['morningEvidence'], statusId: 'proofMorningStatus', label: 'Morning Check-in' },
+  medicationTaken: { toggleId: 'tog-medication', inputIds: ['medicationEvidence'], statusId: 'proofMedicationStatus', label: 'Medication' },
+  mealLogged: { toggleId: 'tog-meal', inputIds: ['mealEvidence', 'mealEvidence2', 'mealEvidence3'], statusId: 'proofMealStatus', label: 'Meal' },
+  activityLogged: { toggleId: 'tog-activity', inputIds: ['activityEvidence'], statusId: 'proofActivityStatus', label: 'Activity' },
+  eveningCheckInCompleted: { toggleId: 'tog-evening', inputIds: ['eveningEvidence'], statusId: 'proofEveningStatus', label: 'Evening Check-in' }
+};
+const PHOTO_TIPS = {
+  morningCheckInCompleted: "Tip: morning photo with sunlight can show healthy routine momentum.",
+  medicationTaken: "Tip: clear photo of medication organizer or dose card helps quick verification.",
+  mealLogged: "Tip: one clear photo per meal helps us validate breakfast, lunch, and dinner.",
+  activityLogged: "Tip: action shot or workout summary image makes activity claims easy to verify.",
+  eveningCheckInCompleted: "Tip: evening wind-down setup photo can support your consistency trend."
+};
 const formState = {
   morningCheckInCompleted:  false,
   medicationTaken:          false,
@@ -576,30 +701,44 @@ const formState = {
   appointmentAttended:      false,
   sleepStartHour:           null,
   notes:                    '',
+  mealParts:                { breakfast: false, lunch: false, dinner: false },
+  activityDetail:           '',
   logDate:                  todayStr()
 };
+const MAX_EVIDENCE_FILE_SIZE = 10 * 1024 * 1024; // 10 MB client-side guard
 
 // ── Init ─────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  document.getElementById('userChip').textContent = session.name;
+  document.getElementById('userChip').textContent = session.name || 'Patient';
   setGreeting();
 
   try {
-    const users = await apiFetch('/api/users');
-    const eric = users.find(u => u.displayName === 'Eric Ng');
-    if (!eric) { showError('Eric Ng account not found — has the app been seeded?'); return; }
-    ericId = eric.id;
+    if (!session.userId) {
+      showError('No patient account is selected for this login session.');
+      return;
+    }
+    const me = await apiFetch('/api/users/' + session.userId);
+    patientProfile = me;
+    patientId = me.id;
 
-    const daysSince = Math.floor((Date.now() - new Date(eric.recoveryStartDate)) / 86400000);
-    document.getElementById('dayCount').textContent = 'Day ' + daysSince;
+    updateDayCountBadge();
+    const sleepHint = document.getElementById('sleepTargetHint');
+    if (me.expectedSleepTarget) {
+      sleepHint.textContent = 'Target: ' + me.expectedSleepTarget;
+    } else if (me.typicalSleepStartHour != null) {
+      sleepHint.textContent = 'Typical target: around ' + me.typicalSleepStartHour + ':00';
+    } else {
+      sleepHint.textContent = 'Set a consistent bedtime target with your clinician.';
+    }
 
     const defaultDate = todayStr();
     document.getElementById('logDate').value = defaultDate;
     formState.logDate = defaultDate;
 
-    allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+    allSignals = await apiFetch('/api/users/' + patientId + '/signals');
+    updateDayCountBadge();
     await loadExistingForDate(defaultDate);
     updateEvidenceRequirementHints();
     renderRecentActivity();
@@ -632,18 +771,64 @@ async function onDateChange(dateStr) {
 }
 
 async function loadExistingForDate(dateStr) {
-  allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+  allSignals = await apiFetch('/api/users/' + patientId + '/signals');
+  updateDayCountBadge();
   const existing = allSignals.find(s => s.logDate === dateStr);
+  existingForDate = existing || null;
+  deniedBySignal = {};
+  if (existing && existing.id) {
+    try {
+      const evidence = await apiFetch('/api/evidence/signal/' + existing.id);
+      deniedBySignal = buildDeniedSignalMap(evidence);
+    } catch (_) {}
+  }
   if (existing) prefillForm(existing);
   else          resetFormState();
 }
 
 // ── Toggle signals ───────────────────────────────────────────────────
 function toggleSignal(field, toggleId) {
+  if (lockedSignals.has(field)) {
+    const label = SIGNAL_META[field]?.label || 'This signal';
+    showAppPopup('Already Logged for This Date', `${label} is already logged for ${formState.logDate}. You can still add any missing signals, but this one cannot be resubmitted.`);
+    return;
+  }
   formState[field] = !formState[field];
-  document.getElementById(toggleId).classList.toggle('active', formState[field]);
+  if (field === 'mealLogged') {
+    if (formState[field] && !Object.values(formState.mealParts).some(Boolean)) {
+      formState.mealParts = { breakfast: true, lunch: false, dinner: false };
+    }
+    if (!formState[field]) {
+      formState.mealParts = { breakfast: false, lunch: false, dinner: false };
+    }
+    renderMealParts();
+  }
+  applySignalVisualState(field);
   updateProgress();
   updateEvidenceRequirementHints();
+}
+
+function toggleMealPart(part) {
+  if (lockedSignals.has('mealLogged')) {
+    showAppPopup('Meal Already Logged', 'Meals are already logged for this date.');
+    return;
+  }
+  formState.mealParts[part] = !formState.mealParts[part];
+  const anyMeal = Object.values(formState.mealParts).some(Boolean);
+  formState.mealLogged = anyMeal;
+  applySignalVisualState('mealLogged');
+  renderMealParts();
+  updateProgress();
+  updateEvidenceRequirementHints();
+}
+
+function renderMealParts() {
+  ['breakfast', 'lunch', 'dinner'].forEach((part) => {
+    const chip = document.getElementById('chip-' + part);
+    if (!chip) return;
+    chip.classList.toggle('active', !!formState.mealParts[part]);
+    chip.disabled = lockedSignals.has('mealLogged');
+  });
 }
 
 function updateProgress() {
@@ -673,10 +858,14 @@ function resetApptAttended() {
 
 // ── Submit ───────────────────────────────────────────────────────────
 async function submitCheckIn() {
-  if (!ericId) return;
+  if (!patientId) return;
+  if (!hasAnyNewSignalForDate()) {
+    showAppPopup('Nothing New to Submit', 'All selected signals are already logged for this date. Choose a different day or add only missing signals.');
+    return;
+  }
   const evidenceValidation = validateEvidenceRequirements();
   if (!evidenceValidation.ok) {
-    alert(evidenceValidation.message);
+    showAppPopup('Validation Required', evidenceValidation.message);
     return;
   }
 
@@ -695,25 +884,57 @@ async function submitCheckIn() {
     appointmentScheduled:    formState.appointmentScheduled === true,
     appointmentAttended:     formState.appointmentAttended  === true,
     sleepStartHour:          sleepVal !== '' ? parseInt(sleepVal) : null,
-    notes:                   document.getElementById('notes').value.trim() || null
+    notes:                   buildFinalNotes()
   };
 
   try {
-    await apiMultipartFetch('/api/users/' + ericId + '/signals/daily-with-evidence', payload, {
+    await apiMultipartFetch('/api/users/' + patientId + '/signals/daily-with-evidence', payload, {
+      morningEvidence: document.getElementById('morningEvidence').files[0] || null,
       medicationEvidence: document.getElementById('medicationEvidence').files[0] || null,
       mealEvidence: document.getElementById('mealEvidence').files[0] || null,
-      activityEvidence: document.getElementById('activityEvidence').files[0] || null
+      mealEvidence2: document.getElementById('mealEvidence2').files[0] || null,
+      mealEvidence3: document.getElementById('mealEvidence3').files[0] || null,
+      activityEvidence: document.getElementById('activityEvidence').files[0] || null,
+      eveningEvidence: document.getElementById('eveningEvidence').files[0] || null
     });
-    await apiFetch('/api/users/' + ericId + '/risk/recalculate', 'POST');
 
-    allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+    allSignals = await apiFetch('/api/users/' + patientId + '/signals');
+    updateDayCountBadge();
+    await loadExistingForDate(formState.logDate);
     renderRecentActivity();
     showConfirmation(payload);
   } catch(e) {
-    alert('Could not save: ' + e.message);
+    if ((e.message || '').includes('413')) {
+      showAppPopup('Upload Too Large', 'Please use smaller images (max 10MB each) or fewer large files at once.');
+    } else {
+      showAppPopup('Save Failed', 'Could not save: ' + e.message);
+    }
     btn.disabled = false; btn.classList.remove('loading');
     document.getElementById('submitLabel').textContent = 'Submit check-in';
   }
+}
+
+function hasAnyNewSignalForDate() {
+  const hasNewCoreSignal = Object.keys(SIGNAL_META).some((field) => formState[field] && !lockedSignals.has(field));
+  if (hasNewCoreSignal) return true;
+  if (!existingForDate) return false;
+  const sleepVal = document.getElementById('sleepHour').value;
+  const nextSleep = sleepVal !== '' ? parseInt(sleepVal) : null;
+  const nextNotes = buildFinalNotes();
+  const scheduled = formState.appointmentScheduled === true;
+  const attended = formState.appointmentAttended === true;
+  return scheduled !== !!existingForDate.appointmentScheduled
+      || attended !== !!existingForDate.appointmentAttended
+      || nextSleep !== existingForDate.sleepStartHour
+      || nextNotes !== (existingForDate.notes || null);
+}
+
+function applySignalVisualState(field) {
+  const meta = SIGNAL_META[field];
+  if (!meta) return;
+  const toggle = document.getElementById(meta.toggleId);
+  toggle.classList.toggle('active', !!formState[field]);
+  toggle.classList.toggle('locked', lockedSignals.has(field));
 }
 
 function showConfirmation(payload) {
@@ -744,12 +965,13 @@ function showConfirmation(payload) {
   document.getElementById('confirmationPanel').style.display = 'block';
 }
 
-function logAnother() {
+async function logAnother() {
   document.getElementById('confirmationPanel').style.display = 'none';
   document.getElementById('logCard').style.display           = '';
-  resetFormState();
-  document.getElementById('logDate').value = todayStr();
-  formState.logDate = todayStr();
+  const currentDate = document.getElementById('logDate').value || todayStr();
+  formState.logDate = currentDate;
+  document.getElementById('logDate').value = currentDate;
+  await loadExistingForDate(currentDate);
   const btn = document.getElementById('submitBtn');
   btn.disabled = false; btn.classList.remove('loading');
   document.getElementById('submitLabel').textContent = 'Submit check-in';
@@ -757,31 +979,45 @@ function logAnother() {
 
 // ── Form state helpers ────────────────────────────────────────────────
 function prefillForm(sig) {
-  const map = {
-    morningCheckInCompleted:  'tog-morning',
-    medicationTaken:          'tog-medication',
-    mealLogged:               'tog-meal',
-    activityLogged:           'tog-activity',
-    eveningCheckInCompleted:  'tog-evening'
-  };
-  Object.entries(map).forEach(([field, togId]) => {
+  lockedSignals.clear();
+  Object.keys(SIGNAL_META).forEach((field) => {
     formState[field] = !!sig[field];
-    document.getElementById(togId).classList.toggle('active', formState[field]);
+    if (sig[field] && !deniedBySignal[field]) {
+      lockedSignals.add(field);
+    }
+    applySignalVisualState(field);
   });
   if (sig.sleepStartHour != null) {
     document.getElementById('sleepHour').value = sig.sleepStartHour;
+  } else {
+    document.getElementById('sleepHour').value = '';
   }
-  if (sig.appointmentScheduled) setApptScheduled(true);
-  if (sig.appointmentAttended)  setApptAttended(true);
+  setApptScheduled(!!sig.appointmentScheduled);
+  if (sig.appointmentScheduled) {
+    setApptAttended(!!sig.appointmentAttended);
+  } else {
+    resetApptAttended();
+  }
+  document.getElementById('notes').value = sig.notes || '';
+  formState.activityDetail = '';
+  document.getElementById('activityDetail').value = '';
+  formState.mealParts = { breakfast: false, lunch: false, dinner: false };
+  if (sig.mealLogged) {
+    formState.mealParts = { breakfast: true, lunch: true, dinner: true };
+  }
+  renderMealParts();
   updateProgress();
   updateEvidenceRequirementHints();
 }
 
 function resetFormState() {
+  existingForDate = null;
+  lockedSignals.clear();
   ['morningCheckInCompleted','medicationTaken','mealLogged','activityLogged','eveningCheckInCompleted']
     .forEach(f => { formState[f] = false; });
-  const togs = ['tog-morning','tog-medication','tog-meal','tog-activity','tog-evening'];
-  togs.forEach(id => document.getElementById(id).classList.remove('active'));
+  Object.keys(SIGNAL_META).forEach((field) => {
+    applySignalVisualState(field);
+  });
   formState.appointmentScheduled = null;
   formState.appointmentAttended  = false;
   document.getElementById('apptYes').className = 'yn-btn';
@@ -790,9 +1026,12 @@ function resetFormState() {
   resetApptAttended();
   document.getElementById('sleepHour').value = '';
   document.getElementById('notes').value = '';
-  document.getElementById('medicationEvidence').value = '';
-  document.getElementById('mealEvidence').value = '';
-  document.getElementById('activityEvidence').value = '';
+  formState.activityDetail = '';
+  document.getElementById('activityDetail').value = '';
+  formState.mealParts = { breakfast: false, lunch: false, dinner: false };
+  renderMealParts();
+  ['morningEvidence','medicationEvidence','mealEvidence','mealEvidence2','mealEvidence3','activityEvidence','eveningEvidence']
+    .forEach(id => { document.getElementById(id).value = ''; });
   updateProgress();
   updateEvidenceRequirementHints();
 }
@@ -834,6 +1073,11 @@ function renderRecentActivity() {
   document.getElementById('activitySummary').innerHTML = msgs + ' ' + streakEl;
 }
 
+function updateDayCountBadge() {
+  const loggedDays = new Set((allSignals || []).map(s => s.logDate)).size;
+  document.getElementById('dayCount').textContent = 'Day ' + loggedDays;
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -856,22 +1100,153 @@ async function apiMultipartFetch(path, payload, files) {
 }
 
 function validateEvidenceRequirements() {
-  if (formState.medicationTaken && !document.getElementById('medicationEvidence').files.length) {
+  if (formState.morningCheckInCompleted && !lockedSignals.has('morningCheckInCompleted') && !hasAnyFile(SIGNAL_META.morningCheckInCompleted.inputIds)) {
+    return { ok: false, message: 'Morning Check-in is checked. Please upload photo proof.' };
+  }
+  if (formState.medicationTaken && !lockedSignals.has('medicationTaken') && !hasAnyFile(SIGNAL_META.medicationTaken.inputIds)) {
     return { ok: false, message: 'Medication is checked. Please upload medication photo proof.' };
   }
-  if (formState.mealLogged && !document.getElementById('mealEvidence').files.length) {
-    return { ok: false, message: 'Meal is checked. Please upload meal photo proof.' };
+  if (formState.mealLogged && !lockedSignals.has('mealLogged')) {
+    const mealsExpected = patientProfile?.expectedMealsPerDay || 1;
+    const mealInputs = SIGNAL_META.mealLogged.inputIds;
+    const requiredCount = mealsExpected >= 3 ? 3 : 1;
+    const uploadedCount = mealInputs.filter(id => document.getElementById(id).files.length).length;
+    if (uploadedCount < requiredCount) {
+      return { ok: false, message: mealsExpected >= 3
+          ? 'Meals are checked and this patient expects 3 meals/day. Please upload 3 meal photos (breakfast/lunch/dinner).'
+          : 'Meal is checked. Please upload meal photo proof.' };
+    }
   }
-  if (formState.activityLogged && !document.getElementById('activityEvidence').files.length) {
+  if (formState.activityLogged && !lockedSignals.has('activityLogged') && !hasAnyFile(SIGNAL_META.activityLogged.inputIds)) {
     return { ok: false, message: 'Activity is checked. Please upload activity photo proof.' };
+  }
+  if (formState.eveningCheckInCompleted && !lockedSignals.has('eveningCheckInCompleted') && !hasAnyFile(SIGNAL_META.eveningCheckInCompleted.inputIds)) {
+    return { ok: false, message: 'Evening Check-in is checked. Please upload photo proof.' };
   }
   return { ok: true, message: null };
 }
 
 function updateEvidenceRequirementHints() {
-  document.getElementById('medEvidenceStatus').textContent = formState.medicationTaken ? 'Required' : 'Optional';
-  document.getElementById('mealEvidenceStatus').textContent = formState.mealLogged ? 'Required' : 'Optional';
-  document.getElementById('activityEvidenceStatus').textContent = formState.activityLogged ? 'Required' : 'Optional';
+  Object.entries(SIGNAL_META).forEach(([field, meta]) => {
+    updateProofStatus(meta.statusId, meta.inputIds, formState[field], field);
+  });
+}
+
+function onEvidencePicked(inputId, statusId) {
+  const input = document.getElementById(inputId);
+  if (!input.files.length) {
+    updateEvidenceRequirementHints();
+    return;
+  }
+  const file = input.files[0];
+  if (!file.type.startsWith('image/')) {
+    showAppPopup('Invalid File Type', 'Please upload an image file (JPEG/PNG/WebP).');
+    input.value = '';
+    updateEvidenceRequirementHints();
+    return;
+  }
+  if (file.size > MAX_EVIDENCE_FILE_SIZE) {
+    showAppPopup('Image Too Large', 'Please choose a file under 10MB.');
+    input.value = '';
+    updateEvidenceRequirementHints();
+    return;
+  }
+  const status = document.getElementById(statusId);
+  status.textContent = `Ready: ${file.name}`;
+  status.classList.remove('required');
+  status.classList.add('ready');
+}
+
+function updateProofStatus(statusId, inputIds, required, field) {
+  const status = document.getElementById(statusId);
+  const inputs = inputIds.map(id => document.getElementById(id));
+  const isLocked = lockedSignals.has(field);
+  const isDenied = !!deniedBySignal[field];
+  if (isLocked) {
+    status.textContent = 'Already logged';
+    status.classList.remove('required');
+    status.classList.add('ready');
+    return;
+  }
+  const picked = inputs.filter(i => i.files.length).map(i => i.files[0].name);
+  if (picked.length) {
+    if (field === 'mealLogged') {
+      status.textContent = `Ready: ${picked.length} meal photo(s)`;
+    } else {
+      status.textContent = `Ready: ${picked[0]}`;
+    }
+    status.classList.remove('required');
+    status.classList.add('ready');
+    return;
+  }
+  status.classList.remove('ready');
+  if (isDenied) {
+    status.textContent = 'Denied previously - please re-upload';
+    status.classList.add('required');
+    return;
+  }
+  if (required) {
+    status.textContent = 'Required';
+    status.classList.add('required');
+  } else {
+    status.textContent = 'No proof uploaded';
+    status.classList.remove('required');
+  }
+}
+
+function hasAnyFile(inputIds) {
+  return inputIds.some(id => document.getElementById(id).files.length);
+}
+
+function buildFinalNotes() {
+  const notes = document.getElementById('notes').value.trim();
+  const activityDetail = (document.getElementById('activityDetail').value || '').trim();
+  const mealParts = Object.entries(formState.mealParts)
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(', ');
+  const segments = [];
+  if (notes) segments.push(notes);
+  if (mealParts && !lockedSignals.has('mealLogged')) segments.push('Meals: ' + mealParts);
+  if (activityDetail && formState.activityLogged && !lockedSignals.has('activityLogged')) {
+    segments.push('Activity detail: ' + activityDetail);
+  }
+  return segments.length ? segments.join(' | ') : null;
+}
+
+function buildDeniedSignalMap(evidence) {
+  const map = {
+    morningCheckInCompleted: false,
+    medicationTaken: false,
+    mealLogged: false,
+    activityLogged: false,
+    eveningCheckInCompleted: false
+  };
+  const approved = { ...map };
+  (evidence || []).forEach((item) => {
+    const field = signalFieldFromType(item.signalType);
+    if (!field) return;
+    if (item.status === 'APPROVED') {
+      approved[field] = true;
+    } else if (item.status === 'DENIED') {
+      map[field] = true;
+    }
+  });
+  Object.keys(map).forEach((k) => {
+    if (approved[k]) map[k] = false;
+  });
+  return map;
+}
+
+function signalFieldFromType(signalType) {
+  const map = {
+    MORNING_CHECKIN: 'morningCheckInCompleted',
+    MEDICATION: 'medicationTaken',
+    MEAL: 'mealLogged',
+    ACTIVITY: 'activityLogged',
+    EVENING_CHECKIN: 'eveningCheckInCompleted'
+  };
+  return map[signalType] || null;
 }
 
 function todayStr() {
@@ -889,6 +1264,16 @@ function showError(msg) {
 function signOut() {
   sessionStorage.removeItem('rr_session');
   window.location.href = '/login.html';
+}
+
+function showAppPopup(title, message) {
+  document.getElementById('appPopupTitle').textContent = title || 'Notice';
+  document.getElementById('appPopupMessage').textContent = message || '';
+  document.getElementById('appPopupBackdrop').classList.add('show');
+}
+
+function hideAppPopup() {
+  document.getElementById('appPopupBackdrop').classList.remove('show');
 }
 </script>
 </body>

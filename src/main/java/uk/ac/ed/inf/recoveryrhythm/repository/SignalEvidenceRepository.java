@@ -28,4 +28,10 @@ public interface SignalEvidenceRepository extends JpaRepository<SignalEvidence, 
             EvidenceSignalType signalType,
             VerificationStatus status
     );
+
+    long countByDailySignalLogAndSignalTypeAndStatus(
+            DailySignalLog dailySignalLog,
+            EvidenceSignalType signalType,
+            VerificationStatus status
+    );
 }

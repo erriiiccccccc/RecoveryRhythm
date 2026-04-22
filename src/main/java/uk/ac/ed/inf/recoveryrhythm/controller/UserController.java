@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 import uk.ac.ed.inf.recoveryrhythm.dto.*;
 import uk.ac.ed.inf.recoveryrhythm.service.UserService;
@@ -24,9 +25,21 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUser(req));
     }
 
+    @PostMapping(value = "/with-profile", consumes = "multipart/form-data")
+    public ResponseEntity<UserResponse> createUserWithProfile(
+            @RequestPart("payload") CreateUserRequest req,
+            @RequestPart(value = "profilePhoto", required = false) MultipartFile profilePhoto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createUserWithProfile(req, profilePhoto));
+    }
+
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
+    }
+
+    @GetMapping("/patient-accounts")
+    public ResponseEntity<List<PatientLoginAccountResponse>> getPatientAccounts() {
+        return ResponseEntity.ok(userService.getPatientLoginAccounts());
     }
 
     @GetMapping("/{id}")

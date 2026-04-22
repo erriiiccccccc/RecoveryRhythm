@@ -21,4 +21,6 @@ public interface DailySignalLogRepository extends JpaRepository<DailySignalLog, 
     List<DailySignalLog> findTop7ByUserOrderByLogDateDesc(RecoveryUser user);
 
     List<DailySignalLog> findTop14ByUserOrderByLogDateDesc(RecoveryUser user);
+
+    long countByUser(RecoveryUser user);
 }

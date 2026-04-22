@@ -73,6 +73,23 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── LocalStack (S3) ─────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3.8.1
+    container_name: rr-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,dynamodb
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   # ── Application ──────────────────────────────────────────────
   app:
     build: .
@@ -92,6 +109,11 @@ services:
       RABBITMQ_USER:           guest
       RABBITMQ_PASS:           guest
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      S3_ENDPOINT:             http://localstack:4566
+      S3_REGION:               us-east-1
+      S3_BUCKET:               recovery-rhythm-evidence
+      AWS_ACCESS_KEY_ID:       test
+      AWS_SECRET_ACCESS_KEY:   test
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,6 +122,8 @@ services:
       kafka:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     restart: on-failure
 

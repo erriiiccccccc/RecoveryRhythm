@@ -1,5 +1,6 @@
 package uk.ac.ed.inf.recoveryrhythm.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -12,6 +13,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMqConfig {
+    private final ObjectMapper objectMapper;
+
+    public RabbitMqConfig(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
 
     public static final String INTERVENTION_QUEUE    = "recovery.interventions";
     public static final String ESCALATION_QUEUE      = "recovery.escalations";
@@ -69,7 +76,7 @@ public class RabbitMqConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean

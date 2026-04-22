@@ -461,10 +461,11 @@
     inset: 0;
     background: rgba(0,0,0,0.5);
     display: none;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     z-index: 500;
-    padding: 20px;
+    padding: 24px 20px;
+    overflow-y: auto;
   }
   .modal-backdrop.show { display: flex; }
   .modal-card {
@@ -474,6 +475,29 @@
     border: 1px solid var(--border);
     background: #1c1b28;
     padding: 18px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  #addPatientModal .modal-card {
+    max-width: 760px;
+  }
+  #verifyEvidenceModal .modal-card {
+    max-width: 620px;
+  }
+  #appNoticeModal .modal-card {
+    max-width: 560px;
+  }
+  #evidencePreviewModal .modal-card {
+    max-width: 980px;
+    padding: 14px;
+  }
+  .evidence-preview-img {
+    width: 100%;
+    max-height: calc(100vh - 180px);
+    object-fit: contain;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,0.25);
   }
   .modal-title {
     font-size: 1rem;
@@ -501,6 +525,52 @@
     padding: 10px 12px;
     font-size: 0.85rem;
   }
+  .modal-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: rgba(111,110,106,0.08);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    min-height: 88px;
+    resize: vertical;
+  }
+  /* Native <select> needs solid bg + color-scheme or browsers render white/illegible */
+  .modal-field select,
+  select.theme-form-select {
+    width: 100%;
+    border: 1px solid var(--border);
+    background-color: #1c1b28;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px 36px 10px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    color-scheme: dark;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236f6e6a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  .modal-field select:hover,
+  select.theme-form-select:hover {
+    border-color: var(--border-h);
+  }
+  .modal-field select:focus,
+  select.theme-form-select:focus {
+    outline: none;
+    border-color: var(--border-h);
+    box-shadow: 0 0 0 3px rgba(229,230,250,0.07);
+  }
+  .modal-field select option,
+  select.theme-form-select option {
+    background: #1c1b28;
+    color: var(--text);
+  }
   .modal-actions {
     margin-top: 12px;
     display: flex;
@@ -527,6 +597,11 @@
     font-size: 0.7rem;
     color: var(--muted);
   }
+  .modal-subtle {
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
   .verification-metrics {
     margin-top: 12px;
     font-size: 0.72rem;
@@ -535,6 +610,37 @@
     gap: 12px;
     flex-wrap: wrap;
   }
+  .verification-alert {
+    display: none;
+    margin-bottom: 14px;
+    border: 1px solid rgba(255,170,0,0.35);
+    background: linear-gradient(135deg, rgba(255,170,0,0.12), rgba(255,107,53,0.08));
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .verification-alert.show { display: flex; }
+  .verification-alert-text {
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .verification-alert-btn {
+    border: 1px solid rgba(255,170,0,0.45);
+    background: rgba(255,170,0,0.15);
+    color: #ffcc80;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .verification-alert-btn:hover { border-color: rgba(255,170,0,0.65); color: #ffe0ad; }
 
   /* ── Animations ── */
   @keyframes fadeUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -637,6 +743,12 @@
             <p id="reentryPrompt">Patient is in low-pressure re-entry mode.</p>
           </div>
         </div>
+        <div id="verificationAlert" class="verification-alert">
+          <div class="verification-alert-text" id="verificationAlertText">
+            New evidence submitted. Clinician verification required before score confidence can improve.
+          </div>
+          <button class="verification-alert-btn" onclick="openEvidenceQueueModal()">Review Now</button>
+        </div>
 
         <!-- Loading -->
         <div id="loadingState" class="loading">
@@ -668,7 +780,7 @@
                 </div>
               </div>
               <div style="text-align:center">
-                <div style="font-size:0.72rem;color:var(--muted)">Days in Recovery</div>
+                <div style="font-size:0.72rem;color:var(--muted)">Logged Days</div>
                 <div class="days-counter" style="justify-content:center;margin-top:4px">
                   <span id="daysCount">—</span>
                   <span class="days-unit">days</span>
@@ -700,7 +812,8 @@
               <div id="baselineDetails"></div>
             </div>
             <div class="card full-width">
-              <div class="card-label">Evidence Review Queue</div>
+              <div class="card-label" id="evidenceQueueLabel">Evidence Review Queue</div>
+              <p class="evidence-queue-hint" id="evidenceQueueHint" style="display:none;font-size:0.72rem;color:var(--muted);margin:-8px 0 10px">Risk uses verified evidence only. Approve or deny here before scores reflect the patient&rsquo;s claims.</p>
               <div id="evidenceQueue"></div>
             </div>
             <div class="card full-width">
@@ -728,14 +841,113 @@
       <input id="newPatientName" type="text" placeholder="e.g. Jordan Smith">
     </div>
     <div class="modal-field">
+      <label for="newPatientEmail">Login email (for patient check-in)</label>
+      <input id="newPatientEmail" type="email" placeholder="e.g. eric@patient.com">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientPassword">Login password</label>
+      <input id="newPatientPassword" type="text" placeholder="e.g. demo123">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientPhoto">Profile photo (stored in S3)</label>
+      <input id="newPatientPhoto" type="file" accept="image/jpeg,image/png,image/webp">
+    </div>
+    <div class="modal-field">
       <label for="newPatientDate">Recovery start date</label>
       <input id="newPatientDate" type="date">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientSleep">Typical sleep start hour (0-23)</label>
+      <input id="newPatientSleep" type="number" min="0" max="23" placeholder="e.g. 23">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientActivity">Expected activity days per week (0-7)</label>
+      <input id="newPatientActivity" type="number" min="0" max="7" placeholder="e.g. 4">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientMedsPerDay">Expected medication doses per day</label>
+      <input id="newPatientMedsPerDay" type="number" min="0" max="8" placeholder="e.g. 2">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientMedSchedule">Medication schedule / names</label>
+      <input id="newPatientMedSchedule" type="text" placeholder="e.g. Sertraline AM, Quetiapine PM">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientMealsPerDay">Expected meals per day</label>
+      <input id="newPatientMealsPerDay" type="number" min="0" max="6" placeholder="e.g. 3 (breakfast/lunch/dinner)">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientActivityType">Expected activity type</label>
+      <input id="newPatientActivityType" type="text" placeholder="e.g. 20 min jog or evening walk">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientSleepTarget">Expected sleep target</label>
+      <input id="newPatientSleepTarget" type="text" placeholder="e.g. in bed by 23:00">
+    </div>
+    <div class="modal-field">
+      <label for="newPatientSource">Baseline reference source</label>
+      <select id="newPatientSource">
+        <option value="">Not set</option>
+        <option value="CLINICIAN_INTAKE">Clinician intake interview</option>
+        <option value="PATIENT_SELF_REPORT">Patient self-report</option>
+        <option value="CAREGIVER_INPUT">Caregiver input</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label for="newPatientNotes">Baseline intake notes</label>
+      <textarea id="newPatientNotes" placeholder="Describe usual routine, known challenges, expected adherence pattern, trigger times, etc."></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn-modal" onclick="closeAddPatientModal()">Cancel</button>
       <button class="btn-modal primary" onclick="createPatient()">Create patient</button>
     </div>
     <div class="modal-note">New patient starts in STABLE state. Baseline builds from daily logs over time.</div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="verifyEvidenceModal">
+  <div class="modal-card">
+    <div class="modal-title">Deny Evidence</div>
+    <div class="modal-subtle">Add an optional reason for the audit trail.</div>
+    <div class="modal-field">
+      <label for="denyReason">Reason</label>
+      <textarea id="denyReason" placeholder="e.g. unclear image, unrelated photo, missing context"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal" onclick="closeDenyEvidenceModal()">Cancel</button>
+      <button class="btn-modal primary" onclick="confirmDenyEvidence()">Submit Denial</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="appNoticeModal">
+  <div class="modal-card">
+    <div class="modal-title" id="appNoticeTitle">Notice</div>
+    <div class="modal-subtle" id="appNoticeMsg"></div>
+    <div class="modal-actions">
+      <button class="btn-modal primary" onclick="closeAppNotice()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="evidenceQueueModal">
+  <div class="modal-card" style="max-width:980px">
+    <div class="modal-actions" style="margin-top:0;margin-bottom:10px;justify-content:space-between">
+      <div class="modal-title" style="margin:0">Pending Evidence Verification</div>
+      <button class="btn-modal" style="max-width:120px;flex:0 0 auto" onclick="closeEvidenceQueueModal()">Close</button>
+    </div>
+    <div class="modal-subtle">Approve or deny each uploaded proof before risk scoring reflects verified claims.</div>
+    <div id="evidenceQueueModalList"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="evidencePreviewModal">
+  <div class="modal-card">
+    <div class="modal-actions" style="margin-top:0;margin-bottom:10px;justify-content:space-between">
+      <div class="modal-title" style="margin:0">Patient Evidence Preview</div>
+      <button class="btn-modal" style="max-width:120px;flex:0 0 auto" onclick="closeEvidencePreview()">Close</button>
+    </div>
+    <img id="evidencePreviewImage" class="evidence-preview-img" alt="Evidence preview">
   </div>
 </div>
 
@@ -750,9 +962,11 @@ document.getElementById('clinicianName').textContent = session.name;
 // ── State ─────────────────────────────────────────────────────────────
 let selectedUserId   = null;
 let pollInterval     = null;
+let evidencePollInterval = null;
 let listInterval     = null;
 let summaryData      = null;
 let secondsSinceUpdate = 0;
+let pendingDenyEvidenceId = null;
 
 // ── Init ──────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -816,6 +1030,7 @@ function selectPatient(userId) {
     loadPatientDetail(userId, false);
     secondsSinceUpdate = 0;
   }, 5000);
+  evidencePollInterval = setInterval(() => { renderEvidenceQueue(); }, 2000);
 
   // Tick last-updated counter
   setInterval(() => {
@@ -827,6 +1042,7 @@ function selectPatient(userId) {
 
 function stopPolling() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  if (evidencePollInterval) { clearInterval(evidencePollInterval); evidencePollInterval = null; }
 }
 
 // ── Load patient detail ───────────────────────────────────────────────
@@ -855,12 +1071,15 @@ async function loadPatientDetail(userId, showLoading) {
 }
 
 function updateDetailHeader(d) {
-  document.getElementById('detailName').textContent = d.displayName || '—';
-  const days  = d.daysSinceRecoveryStart ?? '—';
+  const profile = (d.profilePhotoMimeType && d.profilePhotoBase64)
+    ? `<img src="data:${d.profilePhotoMimeType};base64,${d.profilePhotoBase64}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid var(--border);margin-right:10px;vertical-align:middle"/>`
+    : '';
+  document.getElementById('detailName').innerHTML = `${profile}<span>${d.displayName || '—'}</span>`;
+  const days  = d.loggedDaysCount ?? d.daysSinceRecoveryStart ?? '—';
   const state = (d.stateLabel || d.currentState || 'Unknown');
   const score = d.currentRiskScore ?? 0;
   document.getElementById('detailMeta').textContent =
-    'Day ' + days + ' in recovery · Current state: ' + state + ' · Risk score: ' + score;
+    'Logged days: ' + days + ' · Current state: ' + state + ' · Risk score: ' + score;
 }
 
 // ── Run assessment ────────────────────────────────────────────────────
@@ -892,7 +1111,7 @@ function render(d) {
   renderInterventions(d.latestInterventions || []);
   renderEscalations(d.latestEscalations || []);
   renderEvidenceQueue();
-  document.getElementById('daysCount').textContent = d.daysSinceRecoveryStart ?? '—';
+  document.getElementById('daysCount').textContent = d.loggedDaysCount ?? d.daysSinceRecoveryStart ?? '—';
 }
 
 function renderReentry(d) {
@@ -929,54 +1148,99 @@ function renderSummary(d) {
 
 async function renderEvidenceQueue() {
   const container = document.getElementById('evidenceQueue');
+  const label = document.getElementById('evidenceQueueLabel');
+  const hint = document.getElementById('evidenceQueueHint');
   if (!container) return;
   try {
     const queue = await apiFetch('/api/evidence/pending');
+    const idMatch = (a, b) => String(a) === String(b);
+    if (label) {
+      if (selectedUserId) {
+        const nFor = queue.filter(e => idMatch(e.userId, selectedUserId)).length;
+        label.textContent = nFor
+          ? `Evidence Review Queue — ${nFor} pending (this patient)`
+          : 'Evidence Review Queue — none pending (this patient)';
+      } else {
+        label.textContent = queue.length
+          ? `Evidence Review Queue — ${queue.length} pending (all patients)`
+          : 'Evidence Review Queue';
+      }
+    }
+    if (hint) {
+      const nFor = selectedUserId ? queue.filter(e => idMatch(e.userId, selectedUserId)).length : queue.length;
+      hint.style.display = nFor ? 'block' : 'none';
+    }
     if (!queue.length) {
-      container.innerHTML = '<div class="empty-state">No pending evidence right now.</div>';
+      setVerificationAlert(0);
+      container.innerHTML = '<div class="empty-state">No pending evidence in the system right now.</div>';
+      const modalList = document.getElementById('evidenceQueueModalList');
+      if (modalList) modalList.innerHTML = '<div class="empty-state">No pending evidence in the system right now.</div>';
       return;
     }
     const userQueue = selectedUserId
-      ? queue.filter(e => e.userId === selectedUserId)
+      ? queue.filter(e => idMatch(e.userId, selectedUserId))
       : queue;
+    setVerificationAlert(userQueue.length);
     if (!userQueue.length) {
-      container.innerHTML = '<div class="empty-state">No pending evidence for this patient.</div>';
+      const other = queue.length;
+      const name = (summaryData && summaryData.displayName) ? summaryData.displayName : 'this patient';
+      container.innerHTML = '<div class="empty-state">No pending evidence for <strong>' + name + '</strong>. There ' +
+        (other === 1 ? 'is' : 'are') + ' <strong>' + other + '</strong> pending for other patient(s) — select them in the sidebar to review.</div>';
       return;
     }
 
-    container.innerHTML = userQueue.slice(0, 8).map(e => {
+    const queueHtml = userQueue.slice(0, 12).map(e => {
       const imageSrc = `data:${e.mimeType};base64,${e.imageBase64}`;
       const uploaded = new Date(e.uploadedAt).toLocaleString('en-GB');
+      const logDay = e.logDate ? new Date(e.logDate + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric'}) : 'Unknown day';
       return `<div class="evidence-queue-item">
         <div class="evidence-meta">
           <span class="evidence-badge">${e.signalType.replace('_', ' ')}</span>
-          <span>${uploaded}</span>
+          <span>Log day: ${logDay}</span>
         </div>
-        <img src="${imageSrc}" class="evidence-thumb" onclick="window.open('${imageSrc}','_blank')"/>
+        <div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px">Uploaded: ${uploaded}</div>
+        <img src="${imageSrc}" class="evidence-thumb" onclick="openEvidencePreview('${imageSrc.replace(/'/g, "\\'")}')"/>
         <div class="evidence-actions">
           <button class="btn-approve" onclick="verifyEvidence('${e.id}', true)">Approve</button>
           <button class="btn-deny" onclick="verifyEvidence('${e.id}', false)">Deny</button>
         </div>
       </div>`;
     }).join('');
+    container.innerHTML = queueHtml;
+    const modalList = document.getElementById('evidenceQueueModalList');
+    if (modalList) {
+      modalList.innerHTML = queueHtml;
+    }
   } catch (e) {
+    setVerificationAlert(0);
     container.innerHTML = '<div class="empty-state">Could not load evidence queue.</div>';
   }
 }
 
 async function verifyEvidence(evidenceId, approve) {
-  const reason = approve ? 'Approved by clinician review' : (prompt('Reason for denial (optional):') || 'Denied by clinician review');
-  const endpoint = approve ? `/api/evidence/${evidenceId}/approve` : `/api/evidence/${evidenceId}/deny`;
-  await apiFetch(endpoint, 'POST', {
-    clinicianName: session.name || 'Clinician',
-    reason
-  });
-  if (selectedUserId) {
-    await apiFetch('/api/users/' + selectedUserId + '/risk/recalculate', 'POST');
-    await loadPatientDetail(selectedUserId, false);
-    await loadPatients();
+  if (!approve) {
+    openDenyEvidenceModal(evidenceId);
+    return;
   }
-  await renderEvidenceQueue();
+  await submitEvidenceDecision(evidenceId, true, 'Approved by clinician review');
+}
+
+async function submitEvidenceDecision(evidenceId, approve, reason) {
+  const endpoint = approve ? `/api/evidence/${evidenceId}/approve` : `/api/evidence/${evidenceId}/deny`;
+  try {
+    await apiFetch(endpoint, 'POST', {
+      clinicianName: session.name || 'Clinician',
+      reason
+    });
+    if (selectedUserId) {
+      await apiFetch('/api/users/' + selectedUserId + '/risk/recalculate', 'POST');
+      await loadPatientDetail(selectedUserId, false);
+      await loadPatients();
+    }
+    await renderEvidenceQueue();
+  } catch (e) {
+    showAppNotice('Action Failed', 'Could not update evidence: ' + e.message);
+  }
 }
 
 function renderGauge(score) {
@@ -1047,7 +1311,35 @@ function renderEpisode(ep) {
 }
 
 function renderBaseline(b) {
-  if (!b) { document.getElementById('baselineDetails').innerHTML = '<div class="empty-state">No baseline calculated yet. Signal data needed.</div>'; return; }
+  if (!b) {
+    const intake = summaryData || {};
+    const hasIntake = intake.baselineIntakeNotes
+      || intake.typicalSleepStartHour != null
+      || intake.expectedActivityDaysPerWeek != null
+      || intake.expectedMedicationDosesPerDay != null
+      || intake.expectedMedicationSchedule
+      || intake.expectedMealsPerDay != null
+      || intake.expectedActivityType
+      || intake.expectedSleepTarget
+      || intake.baselineReferenceSource;
+    if (!hasIntake) {
+      document.getElementById('baselineDetails').innerHTML = '<div class="empty-state">No baseline calculated yet. Signal data needed.</div>';
+      return;
+    }
+    document.getElementById('baselineDetails').innerHTML = `
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:10px">Initial intake baseline (pre-calculation)</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Typical sleep:</strong> ${intake.typicalSleepStartHour != null ? intake.typicalSleepStartHour + ':00' : 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Expected activity:</strong> ${intake.expectedActivityDaysPerWeek != null ? intake.expectedActivityDaysPerWeek + ' day(s)/week' : 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Expected medication:</strong> ${intake.expectedMedicationDosesPerDay != null ? intake.expectedMedicationDosesPerDay + ' dose(s)/day' : 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Medication schedule:</strong> ${intake.expectedMedicationSchedule || 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Expected meals:</strong> ${intake.expectedMealsPerDay != null ? intake.expectedMealsPerDay + ' meal(s)/day' : 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Activity type:</strong> ${intake.expectedActivityType || 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Sleep target:</strong> ${intake.expectedSleepTarget || 'Not set'}</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px"><strong style="color:var(--text)">Source:</strong> ${intake.baselineReferenceSource || 'Not set'}</div>
+      <div style="font-size:0.78rem;color:var(--text-dim);line-height:1.5;border-left:2px solid var(--border);padding-left:10px;margin-top:10px">${intake.baselineIntakeNotes || 'No intake notes provided.'}</div>
+    `;
+    return;
+  }
   const pct = v => Math.round(v * 100) + '%';
   const metrics = [
     {label:'Morning Check-in',value:b.morningCheckInRate},
@@ -1136,7 +1428,7 @@ function formatFactorName(f) {
     activity_absence_streak:'Activity Absence', meal_logging_decline:'Meal Logging',
     sleep_timing_drift:'Sleep Timing', appointment_miss:'Missed Appointments',
     evening_checkin_decline:'Evening Check-in', multi_signal_synergy:'Multi-signal Concern',
-    re_engagement_bonus:'Re-engagement'
+    re_engagement_bonus:'Re-engagement', denied_evidence_claims:'Denied Evidence Claims'
   };
   return n[f] || f.replace(/_/g,' ');
 }
@@ -1157,29 +1449,134 @@ function closeAddPatientModal() {
 
 async function createPatient() {
   const name = (document.getElementById('newPatientName').value || '').trim();
+  const email = (document.getElementById('newPatientEmail').value || '').trim().toLowerCase();
+  const password = (document.getElementById('newPatientPassword').value || '').trim();
   const date = document.getElementById('newPatientDate').value;
+  const sleep = document.getElementById('newPatientSleep').value;
+  const activity = document.getElementById('newPatientActivity').value;
+  const medsPerDay = document.getElementById('newPatientMedsPerDay').value;
+  const medSchedule = (document.getElementById('newPatientMedSchedule').value || '').trim();
+  const mealsPerDay = document.getElementById('newPatientMealsPerDay').value;
+  const activityType = (document.getElementById('newPatientActivityType').value || '').trim();
+  const sleepTarget = (document.getElementById('newPatientSleepTarget').value || '').trim();
+  const source = document.getElementById('newPatientSource').value;
+  const notes = (document.getElementById('newPatientNotes').value || '').trim();
   if (!name) {
-    alert('Please enter patient name.');
+    showAppNotice('Missing Name', 'Please enter patient name.');
     return;
   }
   if (!date) {
-    alert('Please choose recovery start date.');
+    showAppNotice('Missing Date', 'Please choose recovery start date.');
+    return;
+  }
+  if (!email || !password) {
+    showAppNotice('Missing Login Details', 'Please add patient login email and password for demo sign-in.');
     return;
   }
   try {
-    const created = await apiFetch('/api/users', 'POST', {
+    const payload = {
       displayName: name,
-      recoveryStartDate: date
+      loginEmail: email,
+      loginPassword: password,
+      recoveryStartDate: date,
+      typicalSleepStartHour: sleep === '' ? null : Number(sleep),
+      expectedActivityDaysPerWeek: activity === '' ? null : Number(activity),
+      expectedMedicationDosesPerDay: medsPerDay === '' ? null : Number(medsPerDay),
+      expectedMedicationSchedule: medSchedule || null,
+      expectedMealsPerDay: mealsPerDay === '' ? null : Number(mealsPerDay),
+      expectedActivityType: activityType || null,
+      expectedSleepTarget: sleepTarget || null,
+      baselineReferenceSource: source || null,
+      baselineIntakeNotes: notes || null
+    };
+    const photo = document.getElementById('newPatientPhoto').files[0] || null;
+    const formData = new FormData();
+    formData.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+    if (photo) formData.append('profilePhoto', photo);
+    const created = await fetch('/api/users/with-profile', { method: 'POST', body: formData }).then(async r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
     });
     closeAddPatientModal();
     document.getElementById('newPatientName').value = '';
+    document.getElementById('newPatientEmail').value = '';
+    document.getElementById('newPatientPassword').value = '';
+    document.getElementById('newPatientPhoto').value = '';
+    document.getElementById('newPatientSleep').value = '';
+    document.getElementById('newPatientActivity').value = '';
+    document.getElementById('newPatientMedsPerDay').value = '';
+    document.getElementById('newPatientMedSchedule').value = '';
+    document.getElementById('newPatientMealsPerDay').value = '';
+    document.getElementById('newPatientActivityType').value = '';
+    document.getElementById('newPatientSleepTarget').value = '';
+    document.getElementById('newPatientSource').value = '';
+    document.getElementById('newPatientNotes').value = '';
     await loadPatients();
     if (created && created.id) {
       selectPatient(created.id);
     }
   } catch (e) {
-    alert('Could not create patient: ' + e.message);
+    showAppNotice('Create Patient Failed', 'Could not create patient: ' + e.message);
   }
+}
+
+function openDenyEvidenceModal(evidenceId) {
+  pendingDenyEvidenceId = evidenceId;
+  document.getElementById('denyReason').value = '';
+  document.getElementById('verifyEvidenceModal').classList.add('show');
+}
+
+function closeDenyEvidenceModal() {
+  pendingDenyEvidenceId = null;
+  document.getElementById('verifyEvidenceModal').classList.remove('show');
+}
+
+async function confirmDenyEvidence() {
+  if (!pendingDenyEvidenceId) return;
+  const reason = (document.getElementById('denyReason').value || '').trim() || 'Denied by clinician review';
+  const evidenceId = pendingDenyEvidenceId;
+  closeDenyEvidenceModal();
+  await submitEvidenceDecision(evidenceId, false, reason);
+}
+
+function showAppNotice(title, message) {
+  document.getElementById('appNoticeTitle').textContent = title || 'Notice';
+  document.getElementById('appNoticeMsg').textContent = message || '';
+  document.getElementById('appNoticeModal').classList.add('show');
+}
+
+function closeAppNotice() {
+  document.getElementById('appNoticeModal').classList.remove('show');
+}
+
+function setVerificationAlert(pendingCount) {
+  const alert = document.getElementById('verificationAlert');
+  const text = document.getElementById('verificationAlertText');
+  if (!alert || !text) return;
+  if (!selectedUserId || pendingCount <= 0) {
+    alert.classList.remove('show');
+    return;
+  }
+  text.textContent = `Verification required: ${pendingCount} pending evidence item${pendingCount === 1 ? '' : 's'} for this patient. Review before using updated risk score.`;
+  alert.classList.add('show');
+}
+
+function openEvidenceQueueModal() {
+  document.getElementById('evidenceQueueModal').classList.add('show');
+}
+
+function closeEvidenceQueueModal() {
+  document.getElementById('evidenceQueueModal').classList.remove('show');
+}
+
+function openEvidencePreview(src) {
+  const img = document.getElementById('evidencePreviewImage');
+  img.src = src;
+  document.getElementById('evidencePreviewModal').classList.add('show');
+}
+
+function closeEvidencePreview() {
+  document.getElementById('evidencePreviewModal').classList.remove('show');
 }
 </script>
 </body>

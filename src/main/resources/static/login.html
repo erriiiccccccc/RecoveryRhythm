@@ -210,7 +210,7 @@
         </div>
         <span class="demo-badge badge-patient">Patient Check-in</span>
       </div>
-      <div class="demo-hint-note">Click a row above to autofill credentials</div>
+      <div class="demo-hint-note">Create Eric first in clinician portal, then use patient login</div>
     </div>
   </div>
 
@@ -218,9 +218,11 @@
 </div>
 
 <script>
-const ACCOUNTS = {
-  'clinician@rr.nhs.uk': { password: 'demo123', role: 'clinician', name: 'Dr. Sarah Chen' },
-  'eric@patient.com':    { password: 'demo123', role: 'patient',   name: 'Eric Ng' }
+const CLINICIAN_ACCOUNT = {
+  email: 'clinician@rr.nhs.uk',
+  password: 'demo123',
+  role: 'clinician',
+  name: 'Dr. Sarah Chen'
 };
 
 // Already logged in? Redirect.
@@ -232,15 +234,27 @@ if (stored) {
   } catch(e) { sessionStorage.removeItem('rr_session'); }
 }
 
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const email    = document.getElementById('email').value.trim().toLowerCase();
   const password = document.getElementById('password').value;
-  const account  = ACCOUNTS[email];
+  let account = null;
   const err      = document.getElementById('errorMsg');
   err.classList.remove('show');
 
-  if (!account || account.password !== password) {
+  if (email === CLINICIAN_ACCOUNT.email && password === CLINICIAN_ACCOUNT.password) {
+    account = CLINICIAN_ACCOUNT;
+  } else {
+    try {
+      const patientAccounts = await fetch('/api/users/patient-accounts').then(r => r.ok ? r.json() : []);
+      const patient = patientAccounts.find(a => (a.email || '').toLowerCase() === email);
+      if (patient && patient.password === password) {
+        account = { role: 'patient', name: patient.displayName, userId: patient.userId, email: patient.email };
+      }
+    } catch (_) {}
+  }
+
+  if (!account) {
     err.classList.add('show');
     document.getElementById('password').select();
     return;
@@ -252,7 +266,7 @@ function handleLogin(e) {
   document.getElementById('btnLabel').textContent = 'Signing in…';
 
   sessionStorage.setItem('rr_session', JSON.stringify({
-    email, role: account.role, name: account.name
+    email, role: account.role, name: account.name, userId: account.userId || null
   }));
 
   setTimeout(() => {
