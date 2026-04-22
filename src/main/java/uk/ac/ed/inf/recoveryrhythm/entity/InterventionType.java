@@ -1,0 +1,13 @@
+package uk.ac.ed.inf.recoveryrhythm.entity;
+
+public enum InterventionType {
+    GENTLE_REMINDER,
+    FOLLOW_UP_RECHECK,
+    ENHANCED_CHECKIN,
+    LOW_PRESSURE_MESSAGE,
+    REENTRY_MODE_OFFER,
+    REENTRY_MINIMAL_TASK,
+    ESCALATION_PREPARATION,
+    ESCALATION_EXECUTION,
+    RECOVERY_ACKNOWLEDGEMENT
+}

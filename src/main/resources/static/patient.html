@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recovery Rhythm — My Check-in</title>
+<style>
+  :root {
+    --bg:        #14131c;
+    --surface:   rgba(111,110,106,0.1);
+    --surface-h: rgba(111,110,106,0.18);
+    --border:    rgba(111,110,106,0.24);
+    --border-h:  rgba(229,230,250,0.38);
+    --text:      #e5e6fa;
+    --text-dim:  rgba(229,230,250,0.55);
+    --muted:     #6f6e6a;
+    --accent:    #e5e6fa;
+    --accent-mid:#b8b9e8;
+    --accent-btn:#9a9be0;
+    --stable:    #2ed573;
+    --radius:    16px;
+    --radius-sm: 10px;
+    --t:         0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100dvh; line-height: 1.6;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 800px 600px at 20% 0%,  rgba(184,185,232,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 500px at 80% 100%, rgba(111,110,106,0.1)  0%, transparent 60%),
+      linear-gradient(160deg, #14131c 0%, #1c1b28 50%, #14131c 100%);
+  }
+  body > * { position: relative; z-index: 1; }
+
+  /* ── Header ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(20,19,28,0.9); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 700; }
+  .logo-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .logo-sub { color: var(--accent-mid); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .user-chip {
+    font-size: 0.8rem; color: var(--text-dim);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: 100px;
+  }
+  .btn-signout {
+    background: none; border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.78rem; font-weight: 600;
+    padding: 5px 12px; border-radius: 8px; cursor: pointer;
+    transition: border-color var(--t), color var(--t); font-family: inherit;
+  }
+  .btn-signout:hover { border-color: var(--border-h); color: var(--text); }
+
+  /* ── Page ── */
+  .page { max-width: 640px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ── Loading ── */
+  .loading-state {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; padding: 80px 24px; color: var(--muted); font-size: 0.875rem;
+  }
+  .spinner {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent-mid);
+    animation: spin 0.8s linear infinite; flex-shrink: 0;
+  }
+
+  /* ── Card base ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+    backdrop-filter: blur(12px); margin-bottom: 16px;
+    animation: fadeUp 0.35s ease both;
+  }
+  .card-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+  }
+
+  /* ── Greeting card ── */
+  .greeting-card {
+    background: linear-gradient(135deg, rgba(184,185,232,0.1), rgba(111,110,106,0.08));
+    border: 1px solid rgba(229,230,250,0.15); border-radius: var(--radius);
+    padding: 28px 24px; margin-bottom: 16px;
+    animation: fadeUp 0.3s ease;
+  }
+  .greeting-time { font-size: 0.78rem; font-weight: 600; color: var(--accent-mid); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+  .greeting-name { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 8px; }
+  .greeting-sub  { font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; }
+  .day-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(229,230,250,0.1); border: 1px solid rgba(229,230,250,0.2);
+    border-radius: 100px; padding: 4px 12px; font-size: 0.78rem; font-weight: 600;
+    color: var(--accent-mid); margin-top: 12px;
+  }
+
+  /* ── Date picker row ── */
+  .date-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; gap: 12px;
+  }
+  .date-row-label { font-size: 0.875rem; font-weight: 600; color: var(--text-dim); }
+  .date-input {
+    background: rgba(111,110,106,0.12); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    padding: 9px 14px; font-size: 0.875rem; outline: none;
+    transition: border-color var(--t); font-family: inherit; cursor: pointer;
+  }
+  .date-input:focus { border-color: var(--border-h); }
+  .date-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+  /* ── Signal toggles ── */
+  .signals-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .signal-toggle {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-radius: var(--radius-sm);
+    background: var(--surface); border: 1px solid var(--border);
+    cursor: pointer; transition: border-color var(--t), background var(--t), transform var(--t);
+    user-select: none; -webkit-user-select: none;
+  }
+  .signal-toggle:hover { border-color: rgba(229,230,250,0.2); transform: translateY(-1px); }
+  .signal-toggle.active {
+    background: rgba(229,230,250,0.07);
+    border-color: rgba(229,230,250,0.38);
+  }
+  .sig-icon {
+    width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
+    background: rgba(111,110,106,0.15);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); transition: background var(--t), color var(--t);
+  }
+  .signal-toggle.active .sig-icon { background: rgba(184,185,232,0.15); color: var(--accent-mid); }
+  .sig-text { flex: 1; min-width: 0; }
+  .sig-label { font-size: 0.9375rem; font-weight: 600; }
+  .sig-hint  { font-size: 0.78rem; color: var(--text-dim); margin-top: 1px; }
+  .sig-check {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--t); color: transparent;
+  }
+  .signal-toggle.active .sig-check {
+    background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
+    border-color: transparent; color: #0d0c18;
+  }
+
+  /* ── Section divider ── */
+  .section-divider { height: 1px; background: var(--border); margin: 18px 0; }
+  .section-label { font-size: 0.78rem; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 12px; }
+
+  /* ── Yes / No toggles (appointment) ── */
+  .yn-group { display: flex; gap: 10px; margin-bottom: 16px; }
+  .yn-btn {
+    flex: 1; padding: 10px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-size: 0.875rem; font-weight: 600;
+    transition: all var(--t); font-family: inherit;
+  }
+  .yn-btn:hover { border-color: rgba(229,230,250,0.2); color: var(--text); }
+  .yn-btn.active {
+    background: rgba(229,230,250,0.07);
+    border-color: rgba(229,230,250,0.38); color: var(--text);
+  }
+  .yn-btn.active-yes { background: rgba(46,213,115,0.08); border-color: rgba(46,213,115,0.3); color: var(--stable); }
+  .yn-btn.active-no  { background: rgba(255,107,107,0.07); border-color: rgba(255,107,107,0.25); color: #ff6b6b; }
+  .appt-attended { display: none; margin-top: 4px; }
+  .appt-attended.show { display: block; }
+
+  /* ── Sleep select ── */
+  .sleep-select {
+    width: 100%; background: rgba(111,110,106,0.12); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    padding: 11px 14px; font-size: 0.9rem; outline: none;
+    transition: border-color var(--t); font-family: inherit;
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236f6e6a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .sleep-select:focus { border-color: var(--border-h); }
+  .sleep-select option { background: #1c1b28; }
+
+  /* ── Notes ── */
+  .notes-details summary {
+    font-size: 0.78rem; font-weight: 600; color: var(--muted); letter-spacing: 0.05em;
+    text-transform: uppercase; cursor: pointer; padding: 4px 0; user-select: none;
+    list-style: none; display: flex; align-items: center; gap: 6px;
+  }
+  .notes-details summary::before { content: '+'; font-size: 1rem; line-height: 1; }
+  .notes-details[open] summary::before { content: '−'; }
+  .notes-details summary::-webkit-details-marker { display: none; }
+  .notes-ta {
+    width: 100%; margin-top: 12px; min-height: 80px; resize: vertical;
+    background: rgba(111,110,106,0.1); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    padding: 12px 14px; font-size: 0.875rem; outline: none;
+    transition: border-color var(--t); font-family: inherit; line-height: 1.6;
+  }
+  .notes-ta:focus { border-color: var(--border-h); }
+  .notes-ta::placeholder { color: var(--muted); }
+
+  /* ── Evidence upload ── */
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .evidence-item {
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: rgba(111,110,106,0.08);
+  }
+  .evidence-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .evidence-label { font-size: 0.8rem; color: var(--text-dim); }
+  .evidence-label strong { color: var(--text); }
+  .evidence-item input[type="file"] {
+    margin-top: 8px;
+    width: 100%;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .evidence-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Progress bar (count) ── */
+  .progress-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  .progress-label { font-size: 0.78rem; color: var(--text-dim); flex-shrink: 0; }
+  .progress-track {
+    flex: 1; height: 5px; background: rgba(111,110,106,0.2); border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-btn), var(--accent-mid));
+    transition: width 0.5s ease;
+  }
+  .progress-count { font-size: 0.78rem; font-weight: 700; color: var(--accent-mid); flex-shrink: 0; width: 32px; text-align: right; }
+
+  /* ── Submit ── */
+  .btn-submit {
+    width: 100%; margin-top: 20px;
+    background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
+    color: #0d0c18; font-weight: 700; font-size: 1rem;
+    border: none; border-radius: var(--radius-sm);
+    padding: 14px 24px; cursor: pointer;
+    transition: opacity var(--t), transform var(--t);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: inherit;
+  }
+  .btn-submit:hover:not(:disabled) { opacity: 0.87; transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2.5px solid rgba(13,12,24,0.25); border-top-color: #0d0c18;
+    animation: spin 0.7s linear infinite; display: none;
+  }
+  .btn-submit.loading .btn-spinner { display: block; }
+
+  /* ── Confirmation ── */
+  #confirmationPanel {
+    display: none;
+    background: linear-gradient(135deg, rgba(46,213,115,0.08), rgba(184,185,232,0.06));
+    border: 1px solid rgba(46,213,115,0.2);
+    border-radius: var(--radius); padding: 32px 24px;
+    text-align: center; margin-bottom: 16px;
+    animation: fadeUp 0.4s ease;
+  }
+  .confirm-icon-wrap {
+    width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 16px;
+    background: rgba(46,213,115,0.15); border: 2px solid rgba(46,213,115,0.3);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .confirm-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; }
+  .confirm-sub   { font-size: 0.875rem; color: var(--text-dim); margin-bottom: 20px; }
+  .confirm-list  { text-align: left; margin-bottom: 20px; }
+  .confirm-item  { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.875rem; }
+  .confirm-item.done  { color: var(--stable); }
+  .confirm-item.missed{ color: var(--muted); }
+  .btn-another {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 0.875rem; font-weight: 600;
+    padding: 10px 20px; border-radius: var(--radius-sm); cursor: pointer;
+    transition: all var(--t); font-family: inherit;
+  }
+  .btn-another:hover { border-color: var(--border-h); color: var(--text); }
+
+  /* ── Recent activity ── */
+  .activity-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .activity-dot {
+    display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 36px;
+  }
+  .activity-circle {
+    width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 0.65rem;
+    color: var(--muted); transition: all var(--t);
+  }
+  .activity-circle.logged {
+    background: rgba(46,213,115,0.12); border-color: rgba(46,213,115,0.3); color: var(--stable);
+  }
+  .activity-date { font-size: 0.62rem; color: var(--muted); text-align: center; }
+  .activity-summary { font-size: 0.8rem; color: var(--text-dim); margin-top: 12px; }
+  .streak-badge {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+    background: rgba(229,230,250,0.08); border: 1px solid rgba(229,230,250,0.15);
+    border-radius: 100px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; color: var(--accent-mid);
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+  @keyframes checkPop { 0% { transform: scale(0.6); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .signal-toggle.active .sig-check { animation: checkPop 0.2s ease; }
+
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.10s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#9880;</div>
+    <div><span>Recovery</span><span class="logo-sub">Rhythm</span></div>
+  </div>
+  <div class="header-right">
+    <div class="user-chip" id="userChip">Eric Ng</div>
+    <button class="btn-signout" onclick="signOut()">Sign out</button>
+  </div>
+</header>
+
+<main class="page">
+
+  <div id="loadingState" class="loading-state">
+    <div class="spinner"></div> Loading your dashboard…
+  </div>
+
+  <div id="mainContent" style="display:none">
+
+    <!-- Greeting -->
+    <div class="greeting-card">
+      <div class="greeting-time" id="greetingTime">Good morning</div>
+      <div class="greeting-name" id="greetingName">Eric,</div>
+      <div class="greeting-sub" id="greetingSub">Logging your daily routine helps your care team support you — it only takes a minute.</div>
+      <div class="day-pill" id="dayPill">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 6v6l4 2"/></svg>
+        <span id="dayCount">Day —</span> of your recovery
+      </div>
+    </div>
+
+    <!-- Confirmation (shown after submit) -->
+    <div id="confirmationPanel">
+      <div class="confirm-icon-wrap">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2ed573" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="confirm-title">Check-in logged, Eric!</div>
+      <div class="confirm-sub">Your care team has been updated. Here's what you recorded:</div>
+      <div class="confirm-list" id="confirmList"></div>
+      <button class="btn-another" onclick="logAnother()">Log another day &rarr;</button>
+    </div>
+
+    <!-- Log card -->
+    <div class="card" id="logCard">
+      <div class="card-label">Log your day</div>
+
+      <!-- Date picker -->
+      <div class="date-row">
+        <span class="date-row-label">Which day are you logging?</span>
+        <input type="date" class="date-input" id="logDate" onchange="onDateChange(this.value)">
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-row">
+        <span class="progress-label">Signals completed</span>
+        <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <span class="progress-count" id="progressCount">0 / 5</span>
+      </div>
+
+      <!-- Signal toggles -->
+      <div class="signals-list">
+
+        <div class="signal-toggle" id="tog-morning" onclick="toggleSignal('morningCheckInCompleted','tog-morning')">
+          <div class="sig-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          </div>
+          <div class="sig-text">
+            <div class="sig-label">Morning Check-in</div>
+            <div class="sig-hint">Did you complete your morning routine today?</div>
+          </div>
+          <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+
+        <div class="signal-toggle" id="tog-medication" onclick="toggleSignal('medicationTaken','tog-medication')">
+          <div class="sig-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+          </div>
+          <div class="sig-text">
+            <div class="sig-label">Medication Taken</div>
+            <div class="sig-hint">Did you take your medication as prescribed?</div>
+          </div>
+          <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+
+        <div class="signal-toggle" id="tog-meal" onclick="toggleSignal('mealLogged','tog-meal')">
+          <div class="sig-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+          </div>
+          <div class="sig-text">
+            <div class="sig-label">Meal Logged</div>
+            <div class="sig-hint">Did you eat a meal and track it today?</div>
+          </div>
+          <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+
+        <div class="signal-toggle" id="tog-activity" onclick="toggleSignal('activityLogged','tog-activity')">
+          <div class="sig-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <div class="sig-text">
+            <div class="sig-label">Activity</div>
+            <div class="sig-hint">Any physical activity today — a walk counts!</div>
+          </div>
+          <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+
+        <div class="signal-toggle" id="tog-evening" onclick="toggleSignal('eveningCheckInCompleted','tog-evening')">
+          <div class="sig-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </div>
+          <div class="sig-text">
+            <div class="sig-label">Evening Check-in</div>
+            <div class="sig-hint">Did you complete your evening wind-down?</div>
+          </div>
+          <div class="sig-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+
+      </div>
+
+      <!-- Appointment section -->
+      <div class="section-divider"></div>
+      <div class="section-label">Appointments</div>
+      <div style="font-size:0.875rem; color:var(--text-dim); margin-bottom:10px">Did you have a scheduled appointment today?</div>
+      <div class="yn-group" id="apptScheduledGroup">
+        <button class="yn-btn" id="apptYes" onclick="setApptScheduled(true)">Yes</button>
+        <button class="yn-btn" id="apptNo"  onclick="setApptScheduled(false)">No</button>
+      </div>
+      <div class="appt-attended" id="apptAttendedRow">
+        <div style="font-size:0.875rem; color:var(--text-dim); margin-bottom:10px">Did you attend?</div>
+        <div class="yn-group">
+          <button class="yn-btn" id="attendYes" onclick="setApptAttended(true)">Yes, I attended</button>
+          <button class="yn-btn" id="attendNo"  onclick="setApptAttended(false)">No, I missed it</button>
+        </div>
+      </div>
+
+      <!-- Sleep section -->
+      <div class="section-divider"></div>
+      <div class="section-label">Sleep</div>
+      <div style="font-size:0.875rem; color:var(--text-dim); margin-bottom:10px">What time did you go to sleep?</div>
+      <select class="sleep-select" id="sleepHour">
+        <option value="">Not sure / didn't track</option>
+        <option value="19">7:00 PM</option>
+        <option value="20">8:00 PM</option>
+        <option value="21">9:00 PM</option>
+        <option value="22">10:00 PM</option>
+        <option value="23">11:00 PM</option>
+        <option value="0">12:00 AM (midnight)</option>
+        <option value="1">1:00 AM</option>
+        <option value="2">2:00 AM</option>
+        <option value="3">3:00 AM</option>
+        <option value="4">4:00 AM</option>
+        <option value="5">5:00 AM</option>
+        <option value="6">6:00 AM</option>
+      </select>
+
+      <!-- Notes -->
+      <div class="section-divider"></div>
+      <details class="notes-details">
+        <summary>Add a note for your care team (optional)</summary>
+        <textarea class="notes-ta" id="notes" placeholder="Anything you'd like to share — how you're feeling, what was hard, what went well…"></textarea>
+      </details>
+
+      <!-- Evidence -->
+      <div class="section-divider"></div>
+      <div class="section-label">Photo Proof (Clinician Verification)</div>
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px">
+        For Medication, Meal, and Activity claims, upload a photo to support verification.
+      </div>
+      <div class="evidence-grid">
+        <div class="evidence-item">
+          <div class="evidence-row">
+            <div class="evidence-label"><strong>Medication proof</strong> (required if Medication is checked)</div>
+            <div class="evidence-status" id="medEvidenceStatus">Optional</div>
+          </div>
+          <input type="file" id="medicationEvidence" accept="image/*">
+        </div>
+        <div class="evidence-item">
+          <div class="evidence-row">
+            <div class="evidence-label"><strong>Meal proof</strong> (required if Meal is checked)</div>
+            <div class="evidence-status" id="mealEvidenceStatus">Optional</div>
+          </div>
+          <input type="file" id="mealEvidence" accept="image/*">
+        </div>
+        <div class="evidence-item">
+          <div class="evidence-row">
+            <div class="evidence-label"><strong>Activity proof</strong> (required if Activity is checked)</div>
+            <div class="evidence-status" id="activityEvidenceStatus">Optional</div>
+          </div>
+          <input type="file" id="activityEvidence" accept="image/*">
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button class="btn-submit" id="submitBtn" onclick="submitCheckIn()">
+        <div class="btn-spinner" id="btnSpinner"></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span id="submitLabel">Submit check-in</span>
+      </button>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card" id="recentCard">
+      <div class="card-label">Recent Check-ins</div>
+      <div id="activityRow" class="activity-row"></div>
+      <div class="activity-summary" id="activitySummary"></div>
+    </div>
+
+  </div><!-- /mainContent -->
+</main>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────────────
+const session = JSON.parse(sessionStorage.getItem('rr_session') || 'null');
+if (!session || session.role !== 'patient') {
+  window.location.replace('/login.html');
+}
+
+// ── State ────────────────────────────────────────────────────────────
+let ericId    = null;
+let allSignals = [];
+const formState = {
+  morningCheckInCompleted:  false,
+  medicationTaken:          false,
+  mealLogged:               false,
+  activityLogged:           false,
+  eveningCheckInCompleted:  false,
+  appointmentScheduled:     null,
+  appointmentAttended:      false,
+  sleepStartHour:           null,
+  notes:                    '',
+  logDate:                  todayStr()
+};
+
+// ── Init ─────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', init);
+
+async function init() {
+  document.getElementById('userChip').textContent = session.name;
+  setGreeting();
+
+  try {
+    const users = await apiFetch('/api/users');
+    const eric = users.find(u => u.displayName === 'Eric Ng');
+    if (!eric) { showError('Eric Ng account not found — has the app been seeded?'); return; }
+    ericId = eric.id;
+
+    const daysSince = Math.floor((Date.now() - new Date(eric.recoveryStartDate)) / 86400000);
+    document.getElementById('dayCount').textContent = 'Day ' + daysSince;
+
+    const defaultDate = todayStr();
+    document.getElementById('logDate').value = defaultDate;
+    formState.logDate = defaultDate;
+
+    allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+    await loadExistingForDate(defaultDate);
+    updateEvidenceRequirementHints();
+    renderRecentActivity();
+
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('mainContent').style.display  = 'block';
+  } catch(e) {
+    showError('Could not connect to the app. Is it running?');
+  }
+}
+
+// ── Greeting ─────────────────────────────────────────────────────────
+function setGreeting() {
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greetingTime').textContent = part;
+  document.getElementById('greetingName').textContent = session.name + ',';
+  const subs = {
+    'Good morning':   "Starting the day with a check-in is a great habit. Let's get your signals logged.",
+    'Good afternoon': "Afternoon check-ins count just as much. Take a moment to log how your day is going.",
+    'Good evening':   "End of day — you're almost done. A quick log helps your care team track your progress."
+  };
+  document.getElementById('greetingSub').textContent = subs[part];
+}
+
+// ── Date change ──────────────────────────────────────────────────────
+async function onDateChange(dateStr) {
+  formState.logDate = dateStr;
+  await loadExistingForDate(dateStr);
+}
+
+async function loadExistingForDate(dateStr) {
+  allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+  const existing = allSignals.find(s => s.logDate === dateStr);
+  if (existing) prefillForm(existing);
+  else          resetFormState();
+}
+
+// ── Toggle signals ───────────────────────────────────────────────────
+function toggleSignal(field, toggleId) {
+  formState[field] = !formState[field];
+  document.getElementById(toggleId).classList.toggle('active', formState[field]);
+  updateProgress();
+  updateEvidenceRequirementHints();
+}
+
+function updateProgress() {
+  const keys = ['morningCheckInCompleted','medicationTaken','mealLogged','activityLogged','eveningCheckInCompleted'];
+  const done = keys.filter(k => formState[k]).length;
+  document.getElementById('progressFill').style.width  = (done / 5 * 100) + '%';
+  document.getElementById('progressCount').textContent = done + ' / 5';
+}
+
+// ── Appointment ──────────────────────────────────────────────────────
+function setApptScheduled(val) {
+  formState.appointmentScheduled = val;
+  document.getElementById('apptYes').className = 'yn-btn' + (val  ? ' active-yes' : '');
+  document.getElementById('apptNo').className  = 'yn-btn' + (!val ? ' active-no'  : '');
+  document.getElementById('apptAttendedRow').classList.toggle('show', val);
+  if (!val) { formState.appointmentAttended = false; resetApptAttended(); }
+}
+function setApptAttended(val) {
+  formState.appointmentAttended = val;
+  document.getElementById('attendYes').className = 'yn-btn' + (val  ? ' active-yes' : '');
+  document.getElementById('attendNo').className  = 'yn-btn' + (!val ? ' active-no'  : '');
+}
+function resetApptAttended() {
+  document.getElementById('attendYes').className = 'yn-btn';
+  document.getElementById('attendNo').className  = 'yn-btn';
+}
+
+// ── Submit ───────────────────────────────────────────────────────────
+async function submitCheckIn() {
+  if (!ericId) return;
+  const evidenceValidation = validateEvidenceRequirements();
+  if (!evidenceValidation.ok) {
+    alert(evidenceValidation.message);
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  document.getElementById('submitLabel').textContent = 'Saving…';
+
+  const sleepVal = document.getElementById('sleepHour').value;
+  const payload = {
+    logDate:                 formState.logDate,
+    morningCheckInCompleted: formState.morningCheckInCompleted,
+    medicationTaken:         formState.medicationTaken,
+    mealLogged:              formState.mealLogged,
+    activityLogged:          formState.activityLogged,
+    eveningCheckInCompleted: formState.eveningCheckInCompleted,
+    appointmentScheduled:    formState.appointmentScheduled === true,
+    appointmentAttended:     formState.appointmentAttended  === true,
+    sleepStartHour:          sleepVal !== '' ? parseInt(sleepVal) : null,
+    notes:                   document.getElementById('notes').value.trim() || null
+  };
+
+  try {
+    await apiMultipartFetch('/api/users/' + ericId + '/signals/daily-with-evidence', payload, {
+      medicationEvidence: document.getElementById('medicationEvidence').files[0] || null,
+      mealEvidence: document.getElementById('mealEvidence').files[0] || null,
+      activityEvidence: document.getElementById('activityEvidence').files[0] || null
+    });
+    await apiFetch('/api/users/' + ericId + '/risk/recalculate', 'POST');
+
+    allSignals = await apiFetch('/api/users/' + ericId + '/signals');
+    renderRecentActivity();
+    showConfirmation(payload);
+  } catch(e) {
+    alert('Could not save: ' + e.message);
+    btn.disabled = false; btn.classList.remove('loading');
+    document.getElementById('submitLabel').textContent = 'Submit check-in';
+  }
+}
+
+function showConfirmation(payload) {
+  const labels = {
+    morningCheckInCompleted:  ['Morning Check-in',  'Morning routine'],
+    medicationTaken:          ['Medication Taken',   'Medication'],
+    mealLogged:               ['Meal Logged',        'Meal'],
+    activityLogged:           ['Activity',           'Activity'],
+    eveningCheckInCompleted:  ['Evening Check-in',   'Evening routine']
+  };
+
+  const listHtml = Object.entries(labels).map(([k, [done, miss]]) => {
+    if (payload[k]) {
+      return `<div class="confirm-item done">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        ${done}
+      </div>`;
+    } else {
+      return `<div class="confirm-item missed">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        ${miss} — not logged today
+      </div>`;
+    }
+  }).join('');
+
+  document.getElementById('confirmList').innerHTML = listHtml;
+  document.getElementById('logCard').style.display         = 'none';
+  document.getElementById('confirmationPanel').style.display = 'block';
+}
+
+function logAnother() {
+  document.getElementById('confirmationPanel').style.display = 'none';
+  document.getElementById('logCard').style.display           = '';
+  resetFormState();
+  document.getElementById('logDate').value = todayStr();
+  formState.logDate = todayStr();
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false; btn.classList.remove('loading');
+  document.getElementById('submitLabel').textContent = 'Submit check-in';
+}
+
+// ── Form state helpers ────────────────────────────────────────────────
+function prefillForm(sig) {
+  const map = {
+    morningCheckInCompleted:  'tog-morning',
+    medicationTaken:          'tog-medication',
+    mealLogged:               'tog-meal',
+    activityLogged:           'tog-activity',
+    eveningCheckInCompleted:  'tog-evening'
+  };
+  Object.entries(map).forEach(([field, togId]) => {
+    formState[field] = !!sig[field];
+    document.getElementById(togId).classList.toggle('active', formState[field]);
+  });
+  if (sig.sleepStartHour != null) {
+    document.getElementById('sleepHour').value = sig.sleepStartHour;
+  }
+  if (sig.appointmentScheduled) setApptScheduled(true);
+  if (sig.appointmentAttended)  setApptAttended(true);
+  updateProgress();
+  updateEvidenceRequirementHints();
+}
+
+function resetFormState() {
+  ['morningCheckInCompleted','medicationTaken','mealLogged','activityLogged','eveningCheckInCompleted']
+    .forEach(f => { formState[f] = false; });
+  const togs = ['tog-morning','tog-medication','tog-meal','tog-activity','tog-evening'];
+  togs.forEach(id => document.getElementById(id).classList.remove('active'));
+  formState.appointmentScheduled = null;
+  formState.appointmentAttended  = false;
+  document.getElementById('apptYes').className = 'yn-btn';
+  document.getElementById('apptNo').className  = 'yn-btn';
+  document.getElementById('apptAttendedRow').classList.remove('show');
+  resetApptAttended();
+  document.getElementById('sleepHour').value = '';
+  document.getElementById('notes').value = '';
+  document.getElementById('medicationEvidence').value = '';
+  document.getElementById('mealEvidence').value = '';
+  document.getElementById('activityEvidence').value = '';
+  updateProgress();
+  updateEvidenceRequirementHints();
+}
+
+// ── Recent activity ───────────────────────────────────────────────────
+function renderRecentActivity() {
+  const today = new Date();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today); d.setDate(today.getDate() - (6 - i));
+    return d;
+  });
+  const loggedDates = new Set(allSignals.map(s => s.logDate));
+  const loggedCount = days.filter(d => loggedDates.has(toDateStr(d))).length;
+
+  document.getElementById('activityRow').innerHTML = days.map(d => {
+    const ds   = toDateStr(d);
+    const done = loggedDates.has(ds);
+    const label = d.toLocaleDateString('en-GB', { weekday: 'short' });
+    const day   = d.getDate();
+    return `<div class="activity-dot">
+      <div class="activity-circle ${done ? 'logged' : ''}">
+        ${done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>' : day}
+      </div>
+      <div class="activity-date">${label}</div>
+    </div>`;
+  }).join('');
+
+  const msgs = loggedCount === 0
+    ? "No check-ins yet — this is your first one! Great start."
+    : loggedCount >= 5
+    ? `You've logged ${loggedCount} of the last 7 days — excellent consistency!`
+    : `You've logged ${loggedCount} of the last 7 days. Keep building that streak.`;
+
+  const streakEl = loggedCount >= 2 ? `<div class="streak-badge">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    ${loggedCount}-day streak
+  </div>` : '';
+
+  document.getElementById('activitySummary').innerHTML = msgs + ' ' + streakEl;
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────
+async function apiFetch(path, method = 'GET', body = null) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function apiMultipartFetch(path, payload, files) {
+  const formData = new FormData();
+  formData.append('payload', JSON.stringify(payload));
+  Object.entries(files).forEach(([key, file]) => {
+    if (file) formData.append(key, file);
+  });
+
+  const res = await fetch(path, { method: 'POST', body: formData });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function validateEvidenceRequirements() {
+  if (formState.medicationTaken && !document.getElementById('medicationEvidence').files.length) {
+    return { ok: false, message: 'Medication is checked. Please upload medication photo proof.' };
+  }
+  if (formState.mealLogged && !document.getElementById('mealEvidence').files.length) {
+    return { ok: false, message: 'Meal is checked. Please upload meal photo proof.' };
+  }
+  if (formState.activityLogged && !document.getElementById('activityEvidence').files.length) {
+    return { ok: false, message: 'Activity is checked. Please upload activity photo proof.' };
+  }
+  return { ok: true, message: null };
+}
+
+function updateEvidenceRequirementHints() {
+  document.getElementById('medEvidenceStatus').textContent = formState.medicationTaken ? 'Required' : 'Optional';
+  document.getElementById('mealEvidenceStatus').textContent = formState.mealLogged ? 'Required' : 'Optional';
+  document.getElementById('activityEvidenceStatus').textContent = formState.activityLogged ? 'Required' : 'Optional';
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function toDateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function showError(msg) {
+  document.getElementById('loadingState').innerHTML =
+    `<div style="text-align:center;color:#ff6b6b">${msg}</div>`;
+}
+
+function signOut() {
+  sessionStorage.removeItem('rr_session');
+  window.location.href = '/login.html';
+}
+</script>
+</body>
+</html>

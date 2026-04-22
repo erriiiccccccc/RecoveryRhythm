@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recovery Rhythm — Dashboard</title>
+<script>
+  // Route to appropriate page based on session
+  (function() {
+    var s = sessionStorage.getItem('rr_session');
+    if (!s) { window.location.replace('/login.html'); return; }
+    try {
+      var sess = JSON.parse(s);
+      if (sess.role === 'clinician') window.location.replace('/clinician.html');
+      else if (sess.role === 'patient') window.location.replace('/patient.html');
+    } catch(e) { window.location.replace('/login.html'); }
+  })();
+</script>
+<style>
+  /* ── Design Tokens ─────────────────────────────────────────── */
+  :root {
+    --bg-base:      #14131c;
+    --bg-layer:     #1c1b28;
+    --bg-surface:   rgba(111,110,106,0.1);
+    --bg-surface-h: rgba(111,110,106,0.18);
+    --border:       rgba(111,110,106,0.24);
+    --border-h:     rgba(229,230,250,0.38);
+    --text-primary: #e5e6fa;
+    --text-secondary: rgba(229,230,250,0.58);
+    --text-muted:   #6f6e6a;
+    --accent-cyan:  #e5e6fa;
+    --accent-teal:  #b8b9e8;
+    --state-stable:     #2ed573;
+    --state-drifting:   #ffaa00;
+    --state-concerning: #ff6b35;
+    --state-acute:      #ff4757;
+    --state-recovering: #c5c6f5;
+    --glow-cyan: 0 0 30px rgba(229,230,250,0.08);
+    --card-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* ── Reset & Base ──────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── Background gradient ──────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 800px 600px at 20% 0%, rgba(184,185,232,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 500px at 80% 100%, rgba(111,110,106,0.1) 0%, transparent 60%),
+      linear-gradient(160deg, #14131c 0%, #1c1b28 50%, #14131c 100%);
+    pointer-events: none;
+  }
+  body > * { position: relative; z-index: 1; }
+
+  /* ── Header ───────────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(20,19,28,0.88);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #9a9be0, var(--accent-teal));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .logo-text { color: var(--text-primary); }
+  .logo-sub  { color: var(--accent-cyan); }
+
+  .header-controls {
+    display: flex; align-items: center; gap: 16px;
+  }
+  select#userSelect {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 8px 14px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition);
+    min-width: 200px;
+  }
+  select#userSelect:focus { border-color: var(--accent-cyan); }
+  select#userSelect option { background: #1c1b28; }
+
+  .btn {
+    padding: 8px 18px; border-radius: var(--radius-sm);
+    font-size: 0.875rem; font-weight: 600;
+    cursor: pointer; border: none; transition: all var(--transition);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #9a9be0, var(--accent-teal));
+    color: #000;
+  }
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-ghost {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { border-color: var(--accent-cyan); color: var(--text-primary); }
+
+  /* ── Layout ───────────────────────────────────────────────── */
+  .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── Re-entry Banner ──────────────────────────────────────── */
+  #reentryBanner {
+    display: none;
+    background: linear-gradient(135deg, rgba(229,230,250,0.07), rgba(184,185,232,0.05));
+    border: 1px solid rgba(229,230,250,0.2);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    animation: slideDown 0.4s ease;
+  }
+  #reentryBanner.visible { display: flex; align-items: center; gap: 16px; }
+  .reentry-icon { font-size: 2rem; }
+  .reentry-text h3 { color: var(--accent-cyan); font-size: 1rem; font-weight: 600; }
+  .reentry-text p  { color: var(--text-secondary); font-size: 0.875rem; margin-top: 2px; }
+
+  /* ── Metrics Row ──────────────────────────────────────────── */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 300px;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* ── Glass Card ───────────────────────────────────────────── */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    backdrop-filter: blur(12px);
+    transition: border-color var(--transition), box-shadow var(--transition);
+    animation: fadeUp 0.4s ease both;
+  }
+  .card:hover { border-color: var(--border-h); box-shadow: var(--glow-cyan); }
+  .card-label {
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 16px;
+  }
+
+  /* ── Risk Gauge ───────────────────────────────────────────── */
+  .gauge-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 24px;
+  }
+  .gauge-wrapper {
+    position: relative; width: 160px; height: 160px; margin-bottom: 16px;
+  }
+  .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge-track { fill: none; stroke: rgba(111,110,106,0.22); stroke-width: 12; }
+  .gauge-fill  { fill: none; stroke-width: 12; stroke-linecap: round;
+                 transition: stroke-dasharray 1s ease, stroke 0.5s ease; }
+  .gauge-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .gauge-score {
+    font-size: 2.5rem; font-weight: 800; line-height: 1;
+    background: linear-gradient(135deg, var(--text-primary) 60%, var(--accent-teal));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .gauge-label { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── State Badge ──────────────────────────────────────────── */
+  .state-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 100px;
+    font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em;
+    border: 1.5px solid currentColor;
+    margin-bottom: 12px;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  .state-STABLE     { color: var(--state-stable); }
+  .state-DRIFTING   { color: var(--state-drifting); }
+  .state-CONCERNING { color: var(--state-concerning); }
+  .state-ACUTE_RISK { color: var(--state-acute); }
+  .state-RECOVERING { color: var(--state-recovering); }
+
+  /* ── Summary Card ─────────────────────────────────────────── */
+  .summary-card { grid-column: span 2; }
+  .summary-heading {
+    font-size: 1rem; font-weight: 500; color: var(--text-secondary);
+    margin-bottom: 8px; line-height: 1.5;
+  }
+  .summary-detail {
+    font-size: 0.875rem; color: var(--text-secondary); line-height: 1.7;
+    border-left: 2px solid var(--border-h); padding-left: 14px; margin-top: 12px;
+    white-space: pre-wrap;
+  }
+  .trend-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 100px;
+    font-size: 0.75rem; font-weight: 600; margin-top: 12px;
+  }
+  .trend-IMPROVING  { background: rgba(46,213,115,0.15); color: var(--state-stable); }
+  .trend-WORSENING  { background: rgba(255,71,87,0.15);  color: var(--state-acute); }
+  .trend-STABLE     { background: rgba(229,230,250,0.1); color: var(--accent-teal); }
+  .trend-INSUFFICIENT_DATA { background: rgba(136,136,170,0.1); color: var(--text-muted); }
+
+  /* ── Main Grid ────────────────────────────────────────────── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .full-width { grid-column: span 2; }
+
+  /* ── Contributing Factors ─────────────────────────────────── */
+  .factor-item { margin-bottom: 16px; }
+  .factor-item:last-child { margin-bottom: 0; }
+  .factor-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .factor-name { font-size: 0.875rem; color: var(--text-secondary); }
+  .factor-impact { font-size: 0.875rem; font-weight: 700; }
+  .factor-impact.positive { color: var(--state-acute); }
+  .factor-impact.protective { color: var(--state-stable); }
+  .factor-bar-track {
+    height: 6px; background: rgba(111,110,106,0.18);
+    border-radius: 3px; overflow: hidden;
+  }
+  .factor-bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+  .factor-details { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+  .severity-HIGH   .factor-bar-fill { background: linear-gradient(90deg, #ff4757, #ff6b35); }
+  .severity-MEDIUM .factor-bar-fill { background: linear-gradient(90deg, #ff6b35, #ffaa00); }
+  .severity-LOW    .factor-bar-fill { background: linear-gradient(90deg, #ffaa00, #ffcc00); }
+  .severity-PROTECTIVE .factor-bar-fill { background: linear-gradient(90deg, #2ed573, #00ffcc); }
+
+  /* ── Signal Grid ──────────────────────────────────────────── */
+  .signal-grid-header {
+    display: grid; grid-template-columns: 120px repeat(7, 1fr);
+    gap: 6px; margin-bottom: 8px;
+  }
+  .signal-grid-header span {
+    font-size: 0.7rem; color: var(--text-muted); text-align: center;
+  }
+  .signal-grid-row {
+    display: grid; grid-template-columns: 120px repeat(7, 1fr);
+    gap: 6px; margin-bottom: 6px; align-items: center;
+  }
+  .signal-row-label { font-size: 0.75rem; color: var(--text-secondary); }
+  .signal-cell {
+    height: 28px; border-radius: 6px; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 600;
+    transition: all var(--transition);
+  }
+  .signal-yes { background: rgba(46,213,115,0.12); color: var(--state-stable); border: 1px solid rgba(46,213,115,0.18); }
+  .signal-no  { background: rgba(255,71,87,0.07);  color: rgba(255,71,87,0.5); border: 1px solid rgba(255,71,87,0.1); }
+  .signal-na  { background: rgba(111,110,106,0.08); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* ── Episode Card ─────────────────────────────────────────── */
+  .episode-card {
+    border-left: 3px solid var(--state-concerning);
+  }
+  .episode-open-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,107,53,0.12); border: 1px solid rgba(255,107,53,0.3);
+    color: var(--state-concerning); padding: 4px 12px;
+    border-radius: 100px; font-size: 0.75rem; font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .episode-stat {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+  .episode-stat:last-child { border-bottom: none; }
+  .episode-stat-label { color: var(--text-muted); }
+  .episode-stat-value { color: var(--text-primary); font-weight: 500; }
+
+  /* ── Interventions ────────────────────────────────────────── */
+  .intervention-item {
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .intervention-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .intervention-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .intervention-body { flex: 1; min-width: 0; }
+  .intervention-type { font-size: 0.75rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 2px; }
+  .intervention-message { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; }
+  .intervention-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; }
+
+  /* ── Escalations ──────────────────────────────────────────── */
+  .escalation-item {
+    padding: 12px 14px; border-radius: var(--radius-sm);
+    background: rgba(255,71,87,0.06); border: 1px solid rgba(255,71,87,0.15);
+    margin-bottom: 10px;
+  }
+  .escalation-item:last-child { margin-bottom: 0; }
+  .escalation-level { font-size: 0.7rem; font-weight: 700; color: var(--state-acute); text-transform: uppercase; }
+  .escalation-contact { font-size: 0.875rem; color: var(--text-primary); font-weight: 500; margin: 2px 0; }
+  .escalation-reason { font-size: 0.8rem; color: var(--text-secondary); }
+
+  /* ── Days counter ─────────────────────────────────────────── */
+  .days-counter {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 2.5rem; font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-teal), var(--text-primary));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .days-counter-unit { font-size: 0.875rem; font-weight: 500; color: var(--text-muted); }
+
+  /* ── Loading / Empty states ───────────────────────────────── */
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px; color: var(--text-muted); gap: 12px; font-size: 0.875rem;
+  }
+  .spinner {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-teal);
+    animation: spin 0.8s linear infinite;
+  }
+  .empty-state {
+    padding: 32px; text-align: center; color: var(--text-muted); font-size: 0.875rem;
+  }
+
+  /* ── Animations ───────────────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.75; }
+  }
+
+  /* Staggered card entrances */
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.2s; }
+  .card:nth-child(5) { animation-delay: 0.25s; }
+
+  /* ── Footer ───────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 32px; margin-top: 48px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 0.75rem; color: var(--text-muted);
+  }
+  footer a { color: var(--accent-cyan); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 1024px) {
+    .metrics-row { grid-template-columns: 1fr 1fr; }
+    .gauge-card  { grid-column: span 2; flex-direction: row; gap: 32px; }
+    .main-grid   { grid-template-columns: 1fr; }
+    .full-width  { grid-column: span 1; }
+  }
+  @media (max-width: 640px) {
+    .metrics-row { grid-template-columns: 1fr; }
+    .gauge-card  { grid-column: span 1; flex-direction: column; }
+    header { padding: 0 16px; }
+    .page  { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#9880;</div>
+    <div>
+      <span class="logo-text">Recovery</span><span class="logo-sub">Rhythm</span>
+    </div>
+  </div>
+  <div class="header-controls">
+    <select id="userSelect">
+      <option value="">Loading users…</option>
+    </select>
+    <button class="btn btn-primary" onclick="refreshDashboard()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      Refresh
+    </button>
+    <button class="btn btn-ghost" onclick="runRiskAssessment()">Run Assessment</button>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- Re-entry Banner -->
+  <div id="reentryBanner">
+    <div class="reentry-icon">&#128168;</div>
+    <div class="reentry-text">
+      <h3>Re-entry Mode Active</h3>
+      <p id="reentryPrompt">No pressure — your only task today is one small thing.</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="loading">
+    <div class="spinner"></div>
+    Select a user to load their recovery dashboard
+  </div>
+
+  <!-- Dashboard Content -->
+  <div id="dashboardContent" style="display:none">
+
+    <!-- Metrics Row -->
+    <div class="metrics-row">
+
+      <!-- Summary Card -->
+      <div class="card summary-card" id="summaryCard">
+        <div class="card-label">Recovery Summary</div>
+        <div id="stateBadgeContainer"></div>
+        <p class="summary-heading" id="conciseSummary"></p>
+        <div class="summary-detail" id="detailedExplanation"></div>
+        <div id="trendBadge"></div>
+      </div>
+
+      <!-- Risk Score Gauge -->
+      <div class="card gauge-card">
+        <div class="card-label" style="text-align:center">Risk Score</div>
+        <div class="gauge-wrapper">
+          <svg class="gauge-svg" viewBox="0 0 100 100">
+            <circle class="gauge-track" cx="50" cy="50" r="38"/>
+            <circle class="gauge-fill" id="gaugeFill" cx="50" cy="50" r="38"
+              stroke-dasharray="0 239" stroke="#b8b9e8"/>
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-score" id="gaugeScore">—</div>
+            <div class="gauge-label">/ 100</div>
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:0.75rem; color:var(--text-muted)">Days in Recovery</div>
+          <div class="days-counter" style="justify-content:center;margin-top:4px">
+            <span id="daysCount">—</span>
+            <span class="days-counter-unit">days</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+
+      <!-- Contributing Factors -->
+      <div class="card">
+        <div class="card-label">Contributing Factors</div>
+        <div id="factorsList"></div>
+      </div>
+
+      <!-- 7-Day Signal Grid -->
+      <div class="card">
+        <div class="card-label">7-Day Signal History</div>
+        <div id="signalGrid"></div>
+      </div>
+
+      <!-- Active Episode -->
+      <div class="card episode-card" id="episodeCard" style="display:none">
+        <div class="card-label">Active Recovery Episode</div>
+        <div class="episode-open-badge">
+          <span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;animation:pulse 1.5s ease-in-out infinite"></span>
+          Episode Open
+        </div>
+        <div id="episodeDetails"></div>
+      </div>
+
+      <!-- Baseline Summary -->
+      <div class="card" id="baselineCard">
+        <div class="card-label">Personal Baseline</div>
+        <div id="baselineDetails"></div>
+      </div>
+
+      <!-- Interventions -->
+      <div class="card full-width">
+        <div class="card-label">Recent Support Actions</div>
+        <div id="interventionsList"></div>
+      </div>
+
+      <!-- Escalations -->
+      <div class="card" id="escalationCard" style="display:none">
+        <div class="card-label">Supporter Escalations</div>
+        <div id="escalationsList"></div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>Recovery Rhythm &mdash; University of Edinburgh ACP Coursework &mdash; Proof of Concept</span>
+  <span>Not a medical device. For demonstration purposes only.</span>
+</footer>
+
+<script>
+const API = '';
+
+// ── State ────────────────────────────────────────────────────
+let currentUserId = null;
+let summaryData = null;
+
+// ── Init ─────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadUsers();
+  document.getElementById('userSelect').addEventListener('change', e => {
+    currentUserId = e.target.value;
+    if (currentUserId) loadDashboard(currentUserId);
+  });
+});
+
+async function loadUsers() {
+  try {
+    const users = await apiFetch('/api/users');
+    const sel = document.getElementById('userSelect');
+    sel.innerHTML = '<option value="">Select a user…</option>' +
+      users.map(u => `<option value="${u.id}">${u.displayName} — ${u.currentState}</option>`).join('');
+    if (users.length > 0) {
+      sel.value = users[0].id;
+      currentUserId = users[0].id;
+      loadDashboard(currentUserId);
+    }
+  } catch(e) {
+    document.getElementById('userSelect').innerHTML = '<option>⚠ API unavailable</option>';
+  }
+}
+
+async function loadDashboard(userId) {
+  show('loadingState'); hide('dashboardContent');
+  try {
+    summaryData = await apiFetch(`/api/users/${userId}/recovery-summary`);
+    render(summaryData);
+    show('dashboardContent'); hide('loadingState');
+  } catch(e) {
+    document.getElementById('loadingState').innerHTML = `
+      <div style="text-align:center; color:var(--state-acute)">
+        <div style="font-size:2rem">&#9888;</div>
+        <div style="margin-top:8px">Failed to load: ${e.message}</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text-muted)">Is the app running?</div>
+      </div>`;
+    show('loadingState');
+  }
+}
+
+async function refreshDashboard() {
+  if (currentUserId) await loadDashboard(currentUserId);
+}
+
+async function runRiskAssessment() {
+  if (!currentUserId) return;
+  const btn = document.querySelector('.btn-ghost');
+  btn.textContent = 'Running…';
+  btn.disabled = true;
+  try {
+    await apiFetch(`/api/users/${currentUserId}/risk/recalculate`, 'POST');
+    await loadDashboard(currentUserId);
+    await loadUsers();
+  } catch(e) {
+    alert('Assessment failed: ' + e.message);
+  } finally {
+    btn.textContent = 'Run Assessment';
+    btn.disabled = false;
+  }
+}
+
+// ── Render ───────────────────────────────────────────────────
+function render(d) {
+  renderReentry(d);
+  renderSummary(d);
+  renderGauge(d.currentRiskScore);
+  renderFactors(d.contributingFactors || []);
+  renderSignalGrid(d.recentSignals || []);
+  renderEpisode(d.activeEpisode);
+  renderBaseline(d.baselineSummary);
+  renderInterventions(d.latestInterventions || []);
+  renderEscalations(d.latestEscalations || []);
+
+  document.getElementById('daysCount').textContent = d.daysSinceRecoveryStart ?? '—';
+}
+
+function renderReentry(d) {
+  const banner = document.getElementById('reentryBanner');
+  if (d.reentryModeActive) {
+    banner.classList.add('visible');
+    document.getElementById('reentryPrompt').textContent =
+      d.reentryPrompt || 'No pressure — just one small step today is enough.';
+  } else {
+    banner.classList.remove('visible');
+  }
+}
+
+function renderSummary(d) {
+  const state = d.currentState || 'STABLE';
+  const stateLabel = d.stateLabel || state;
+  const trend = d.recentTrend || 'STABLE';
+
+  document.getElementById('stateBadgeContainer').innerHTML = `
+    <div class="state-badge state-${state}">
+      <span class="state-dot"></span>
+      ${stateLabel}
+    </div>`;
+
+  document.getElementById('conciseSummary').textContent = d.conciseSummary || '';
+  document.getElementById('detailedExplanation').textContent = d.detailedExplanation || '';
+
+  const trendIcons = { IMPROVING: '&#8599; Improving', WORSENING: '&#8600; Worsening', STABLE: '&#8594; Stable', INSUFFICIENT_DATA: '&#8212; Insufficient data' };
+  document.getElementById('trendBadge').innerHTML = `
+    <span class="trend-badge trend-${trend}">${trendIcons[trend] || trend}</span>
+    <span style="font-size:0.7rem; color:var(--text-muted); margin-left:8px">
+      Last assessed: ${d.lastAssessedAt ? new Date(d.lastAssessedAt).toLocaleString() : 'Never'}
+    </span>`;
+}
+
+function renderGauge(score) {
+  score = score ?? 0;
+  const circumference = 2 * Math.PI * 38;
+  const fill = (score / 100) * circumference;
+  const color = score < 25 ? '#2ed573' : score < 45 ? '#ffaa00' : score < 70 ? '#ff6b35' : '#ff4757';
+
+  const gaugeFill = document.getElementById('gaugeFill');
+  gaugeFill.style.strokeDasharray = `${fill} ${circumference}`;
+  gaugeFill.style.stroke = color;
+
+  document.getElementById('gaugeScore').textContent = score;
+  document.getElementById('gaugeScore').style.cssText =
+    `background: linear-gradient(135deg, #e5e6fa 40%, ${color}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size:2.5rem; font-weight:800; line-height:1;`;
+}
+
+function renderFactors(factors) {
+  const container = document.getElementById('factorsList');
+  if (!factors.length) {
+    container.innerHTML = '<div class="empty-state">No risk factors detected — signals within baseline range.</div>';
+    return;
+  }
+  container.innerHTML = factors.map(f => {
+    const isProtective = f.impact < 0;
+    const barWidth = isProtective ? Math.min(Math.abs(f.impact) / 30 * 100, 100) : Math.min(f.impact / 30 * 100, 100);
+    const severityClass = isProtective ? 'severity-PROTECTIVE' : `severity-${f.severity || 'MEDIUM'}`;
+    const impactLabel = isProtective ? `−${Math.abs(f.impact)}` : `+${f.impact}`;
+    const impactClass = isProtective ? 'protective' : 'positive';
+    const name = formatFactorName(f.factor);
+    return `
+    <div class="factor-item ${severityClass}">
+      <div class="factor-header">
+        <span class="factor-name">${name}</span>
+        <span class="factor-impact ${impactClass}">${impactLabel} pts</span>
+      </div>
+      <div class="factor-bar-track">
+        <div class="factor-bar-fill" style="width:${barWidth}%"></div>
+      </div>
+      <div class="factor-details">${f.details || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSignalGrid(signals) {
+  const container = document.getElementById('signalGrid');
+  if (!signals.length) {
+    container.innerHTML = '<div class="empty-state">No signal data in the last 7 days.</div>';
+    return;
+  }
+
+  // Sort oldest → newest for display
+  const sorted = [...signals].sort((a,b) => new Date(a.logDate) - new Date(b.logDate));
+  const dates = sorted.map(s => {
+    const d = new Date(s.logDate);
+    return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric' });
+  });
+
+  const rows = [
+    { key: 'morningCheckInCompleted', label: 'Morning' },
+    { key: 'medicationTaken',         label: 'Medication' },
+    { key: 'mealLogged',              label: 'Meals' },
+    { key: 'activityLogged',          label: 'Activity' },
+    { key: 'eveningCheckInCompleted', label: 'Evening' },
+  ];
+
+  const headerCols = ['<span></span>', ...dates.map(d => `<span>${d}</span>`)].join('');
+  const rowsHtml = rows.map(row => {
+    const cells = sorted.map(s => {
+      const val = s[row.key];
+      const cls = val ? 'signal-yes' : 'signal-no';
+      const icon = val ? '✓' : '–';
+      return `<div class="signal-cell ${cls}">${icon}</div>`;
+    }).join('');
+    return `
+    <div class="signal-grid-row">
+      <span class="signal-row-label">${row.label}</span>
+      ${cells}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="signal-grid-header">${headerCols}</div>
+    ${rowsHtml}`;
+}
+
+function renderEpisode(episode) {
+  const card = document.getElementById('episodeCard');
+  if (!episode) { hide('episodeCard'); return; }
+  show('episodeCard');
+
+  const opened = new Date(episode.openedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  const hours = episode.durationHours ?? '—';
+  const peak = episode.peakRiskScore ?? '—';
+
+  document.getElementById('episodeDetails').innerHTML = `
+    <div class="episode-stat">
+      <span class="episode-stat-label">Opened</span>
+      <span class="episode-stat-value">${opened}</span>
+    </div>
+    <div class="episode-stat">
+      <span class="episode-stat-label">Duration</span>
+      <span class="episode-stat-value">${hours}h</span>
+    </div>
+    <div class="episode-stat">
+      <span class="episode-stat-label">Peak Risk</span>
+      <span class="episode-stat-value" style="color:var(--state-acute)">${peak}/100</span>
+    </div>
+    <div class="episode-stat">
+      <span class="episode-stat-label">Opening Reason</span>
+      <span class="episode-stat-value" style="font-size:0.8rem;max-width:200px;text-align:right">${episode.openingReason || '—'}</span>
+    </div>`;
+}
+
+function renderBaseline(b) {
+  if (!b) { document.getElementById('baselineDetails').innerHTML = '<div class="empty-state">No baseline calculated yet.</div>'; return; }
+
+  const pct = v => `${Math.round(v * 100)}%`;
+  const metrics = [
+    { label: 'Morning Check-in', value: b.morningCheckInRate },
+    { label: 'Medication',       value: b.medicationAdherenceRate },
+    { label: 'Meals Logged',     value: b.mealLoggingRate },
+    { label: 'Activity',         value: b.activityRate },
+    { label: 'Evening Check-in', value: b.eveningCheckInRate },
+  ];
+
+  document.getElementById('baselineDetails').innerHTML = `
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:14px">
+      Established over ${b.stableWindowDays} stable days &mdash; avg sleep at ${b.averageSleepStartHour?.toFixed(0) ?? '—'}:00
+    </div>
+    ${metrics.map(m => `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:0.8rem;color:var(--text-secondary)">${m.label}</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:80px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+          <div style="width:${m.value*100}%;height:100%;background:linear-gradient(90deg,var(--accent-teal),var(--text-primary));border-radius:2px"></div>
+        </div>
+        <span style="font-size:0.8rem;font-weight:600;color:var(--text-primary);width:32px;text-align:right">${pct(m.value)}</span>
+      </div>
+    </div>`).join('')}`;
+}
+
+function renderInterventions(interventions) {
+  const container = document.getElementById('interventionsList');
+  if (!interventions.length) {
+    container.innerHTML = '<div class="empty-state">No interventions yet.</div>'; return;
+  }
+
+  const icons = {
+    GENTLE_REMINDER: '&#128172;',
+    FOLLOW_UP_RECHECK: '&#128203;',
+    ENHANCED_CHECKIN: '&#128064;',
+    LOW_PRESSURE_MESSAGE: '&#128149;',
+    REENTRY_MODE_OFFER: '&#128168;',
+    REENTRY_MINIMAL_TASK: '&#9989;',
+    ESCALATION_PREPARATION: '&#128226;',
+    ESCALATION_EXECUTION: '&#128680;',
+    RECOVERY_ACKNOWLEDGEMENT: '&#127775;'
+  };
+
+  const iconBg = {
+    GENTLE_REMINDER: 'rgba(229,230,250,0.1)',
+    ESCALATION_EXECUTION: 'rgba(255,71,87,0.12)',
+    ESCALATION_PREPARATION: 'rgba(255,170,0,0.12)',
+    RECOVERY_ACKNOWLEDGEMENT: 'rgba(46,213,115,0.1)',
+    REENTRY_MODE_OFFER: 'rgba(229,230,250,0.08)',
+    default: 'rgba(111,110,106,0.1)'
+  };
+
+  container.innerHTML = interventions.slice(0,6).map(i => {
+    const date = new Date(i.triggeredAt).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    const icon = icons[i.interventionType] || '&#128172;';
+    const bg = iconBg[i.interventionType] || iconBg.default;
+    const typeName = i.interventionType.replace(/_/g, ' ');
+    return `
+    <div class="intervention-item">
+      <div class="intervention-icon" style="background:${bg}">${icon}</div>
+      <div class="intervention-body">
+        <div class="intervention-type">${typeName}</div>
+        <div class="intervention-message">${i.message || ''}</div>
+        <div class="intervention-meta">${date} &mdash; ${i.status}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderEscalations(escalations) {
+  const card = document.getElementById('escalationCard');
+  const container = document.getElementById('escalationsList');
+  if (!escalations.length) { hide('escalationCard'); return; }
+  show('escalationCard');
+
+  const levelLabels = {
+    LEVEL_1_SOFT_ALERT: 'Level 1 — Soft Alert',
+    LEVEL_2_ACTIVE_CONCERN: 'Level 2 — Active Concern',
+    LEVEL_3_URGENT: 'Level 3 — Urgent'
+  };
+
+  container.innerHTML = escalations.map(e => {
+    const date = new Date(e.triggeredAt).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    return `
+    <div class="escalation-item">
+      <div class="escalation-level">${levelLabels[e.level] || e.level}</div>
+      <div class="escalation-contact">&#128100; ${e.supportContactName || 'Support contact'} notified</div>
+      <div class="escalation-reason">${e.reason || ''}</div>
+      <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px">${date} &mdash; ${e.outcomeStatus}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+async function apiFetch(path, method = 'GET') {
+  const res = await fetch(API + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function show(id) { document.getElementById(id).style.display = ''; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+
+function formatFactorName(factor) {
+  const names = {
+    morning_checkin_drop: 'Morning Check-in',
+    medication_adherence_drop: 'Medication Adherence',
+    activity_absence_streak: 'Activity Absence Streak',
+    meal_logging_decline: 'Meal Logging',
+    sleep_timing_drift: 'Sleep Timing Shift',
+    appointment_miss: 'Missed Appointments',
+    evening_checkin_decline: 'Evening Check-in',
+    multi_signal_synergy: 'Multi-signal Concern',
+    re_engagement_bonus: 'Re-engagement'
+  };
+  return names[factor] || factor.replace(/_/g, ' ');
+}
+</script>
+</body>
+</html>

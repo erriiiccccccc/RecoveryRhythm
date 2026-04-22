@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: recovery-rhythm
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:recoveryrhythm}
+    username: ${POSTGRES_USER:rhythm}
+    password: ${POSTGRES_PASSWORD:rhythm123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    listener:
+      simple:
+        acknowledge-mode: auto
+        prefetch: 1
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: recovery-rhythm-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    time-zone: UTC
+
+server:
+  port: 8080
+
+logging:
+  level:
+    uk.ac.ed.inf.recoveryrhythm: INFO
+    org.springframework.amqp: WARN
+    org.springframework.kafka: WARN
+    org.hibernate: WARN
+
+recovery-rhythm:
+  baseline:
+    stable-window-days: 5
+    minimum-days-required: 3
+  risk:
+    assessment-window-days: 7
+    recent-window-days: 5
+    episode-open-threshold: 45
+    episode-close-threshold: 30
+    recovering-stable-days: 3
+  intervention:
+    dedup-lock-ttl-minutes: 60
+  reentry:
+    disengagement-streak-threshold: 4

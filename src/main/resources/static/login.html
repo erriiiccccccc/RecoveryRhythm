@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recovery Rhythm — Sign In</title>
+<style>
+  :root {
+    --bg:        #14131c;
+    --layer:     #1c1b28;
+    --surface:   rgba(111,110,106,0.1);
+    --border:    rgba(111,110,106,0.24);
+    --border-h:  rgba(229,230,250,0.38);
+    --text:      #e5e6fa;
+    --text-dim:  rgba(229,230,250,0.55);
+    --muted:     #6f6e6a;
+    --accent:    #e5e6fa;
+    --accent-mid:#b8b9e8;
+    --accent-btn:#9a9be0;
+    --error:     #ff6b6b;
+    --radius:    16px;
+    --radius-sm: 10px;
+    --t:         0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    line-height: 1.6;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 800px 600px at 20% 0%,  rgba(184,185,232,0.14) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 500px at 80% 100%, rgba(111,110,106,0.1)  0%, transparent 60%),
+      linear-gradient(160deg, #14131c 0%, #1c1b28 50%, #14131c 100%);
+  }
+  .scene { position: relative; z-index: 1; width: 100%; max-width: 420px; }
+
+  /* ── Logo ── */
+  .logo {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 32px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .logo-sub { color: var(--accent-mid); }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px 32px;
+    backdrop-filter: blur(20px);
+  }
+  .card-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+  .card-sub   { font-size: 0.875rem; color: var(--text-dim); margin-bottom: 28px; }
+
+  /* ── Fields ── */
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 0.78rem; font-weight: 600;
+    color: var(--text-dim); margin-bottom: 8px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .field input {
+    width: 100%;
+    background: rgba(111,110,106,0.12); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    padding: 12px 16px; font-size: 0.9375rem; outline: none;
+    transition: border-color var(--t), box-shadow var(--t);
+    font-family: inherit; appearance: none;
+  }
+  .field input:focus {
+    border-color: var(--border-h);
+    box-shadow: 0 0 0 3px rgba(229,230,250,0.07);
+  }
+  .field input::placeholder { color: var(--muted); }
+  .pw-row { position: relative; }
+  .pw-row input { padding-right: 62px; }
+  .pw-toggle {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 4px 6px; border-radius: 6px; transition: color var(--t); font-family: inherit;
+  }
+  .pw-toggle:hover { color: var(--text); }
+
+  /* ── Error ── */
+  .error-msg {
+    background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.25);
+    border-radius: var(--radius-sm); color: var(--error);
+    font-size: 0.8rem; padding: 10px 14px; margin-bottom: 16px; display: none;
+    align-items: center; gap: 8px;
+  }
+  .error-msg.show { display: flex; }
+
+  /* ── Button ── */
+  .btn-submit {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent-btn), var(--accent-mid));
+    color: #0d0c18; font-weight: 700; font-size: 0.9375rem;
+    border: none; border-radius: var(--radius-sm);
+    padding: 13px 24px; cursor: pointer;
+    transition: opacity var(--t), transform var(--t);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: inherit; margin-top: 4px;
+  }
+  .btn-submit:hover:not(:disabled) { opacity: 0.87; transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+  .spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2.5px solid rgba(13,12,24,0.25); border-top-color: #0d0c18;
+    animation: spin 0.7s linear infinite; display: none; flex-shrink: 0;
+  }
+  .btn-submit.loading .spinner { display: block; }
+
+  /* ── Demo hint ── */
+  .demo-hint {
+    margin-top: 20px; padding: 16px 18px;
+    background: rgba(111,110,106,0.08); border: 1px solid rgba(111,110,106,0.18);
+    border-radius: var(--radius-sm);
+  }
+  .demo-title {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .demo-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer; gap: 10px;
+    transition: background var(--t); margin-bottom: 6px;
+  }
+  .demo-row:last-child { margin-bottom: 0; }
+  .demo-row:hover { background: rgba(229,230,250,0.05); }
+  .demo-email { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--text-dim); }
+  .demo-pw    { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+  .demo-badge {
+    font-size: 0.68rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+  }
+  .badge-clinician { background: rgba(184,185,232,0.15); color: var(--accent-mid); border: 1px solid rgba(184,185,232,0.25); }
+  .badge-patient   { background: rgba(46,213,115,0.1);   color: #2ed573;           border: 1px solid rgba(46,213,115,0.2); }
+  .demo-hint-note  { font-size: 0.7rem; color: var(--muted); margin-top: 10px; text-align: center; }
+
+  /* ── Footer ── */
+  .page-footer { text-align: center; margin-top: 20px; font-size: 0.72rem; color: var(--muted); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .scene { animation: fadeUp 0.4s ease; }
+</style>
+</head>
+<body>
+<div class="scene">
+
+  <div class="logo">
+    <div class="logo-icon">&#9880;</div>
+    <div><span>Recovery</span><span class="logo-sub">Rhythm</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Sign in</div>
+    <div class="card-sub">Access your Recovery Rhythm portal</div>
+
+    <form id="loginForm" onsubmit="handleLogin(event)" novalidate>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="pw-row">
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePw()">Show</button>
+        </div>
+      </div>
+      <div class="error-msg" id="errorMsg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Incorrect email or password — please try again.
+      </div>
+      <button type="submit" class="btn-submit" id="signInBtn">
+        <div class="spinner" id="spinner"></div>
+        <span id="btnLabel">Sign in</span>
+      </button>
+    </form>
+
+    <div class="demo-hint">
+      <div class="demo-title">Demo accounts — click to autofill</div>
+      <div class="demo-row" onclick="autofill('clinician@rr.nhs.uk','demo123')">
+        <div>
+          <div class="demo-email">clinician@rr.nhs.uk</div>
+          <div class="demo-pw">password: demo123</div>
+        </div>
+        <span class="demo-badge badge-clinician">Clinical Portal</span>
+      </div>
+      <div class="demo-row" onclick="autofill('eric@patient.com','demo123')">
+        <div>
+          <div class="demo-email">eric@patient.com</div>
+          <div class="demo-pw">password: demo123</div>
+        </div>
+        <span class="demo-badge badge-patient">Patient Check-in</span>
+      </div>
+      <div class="demo-hint-note">Click a row above to autofill credentials</div>
+    </div>
+  </div>
+
+  <div class="page-footer">Not a medical device &mdash; University of Edinburgh ACP Coursework &mdash; Proof of Concept</div>
+</div>
+
+<script>
+const ACCOUNTS = {
+  'clinician@rr.nhs.uk': { password: 'demo123', role: 'clinician', name: 'Dr. Sarah Chen' },
+  'eric@patient.com':    { password: 'demo123', role: 'patient',   name: 'Eric Ng' }
+};
+
+// Already logged in? Redirect.
+const stored = sessionStorage.getItem('rr_session');
+if (stored) {
+  try {
+    const { role } = JSON.parse(stored);
+    window.location.replace(role === 'clinician' ? '/clinician.html' : '/patient.html');
+  } catch(e) { sessionStorage.removeItem('rr_session'); }
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  const email    = document.getElementById('email').value.trim().toLowerCase();
+  const password = document.getElementById('password').value;
+  const account  = ACCOUNTS[email];
+  const err      = document.getElementById('errorMsg');
+  err.classList.remove('show');
+
+  if (!account || account.password !== password) {
+    err.classList.add('show');
+    document.getElementById('password').select();
+    return;
+  }
+
+  const btn = document.getElementById('signInBtn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  document.getElementById('btnLabel').textContent = 'Signing in…';
+
+  sessionStorage.setItem('rr_session', JSON.stringify({
+    email, role: account.role, name: account.name
+  }));
+
+  setTimeout(() => {
+    window.location.href = account.role === 'clinician' ? '/clinician.html' : '/patient.html';
+  }, 450);
+}
+
+function togglePw() {
+  const inp = document.getElementById('password');
+  const btn = document.getElementById('pwToggle');
+  if (inp.type === 'password') { inp.type = 'text';     btn.textContent = 'Hide'; }
+  else                         { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+function autofill(email, pw) {
+  document.getElementById('email').value    = email;
+  document.getElementById('password').value = pw;
+  document.getElementById('password').type  = 'password';
+  document.getElementById('pwToggle').textContent = 'Show';
+  document.getElementById('errorMsg').classList.remove('show');
+  document.getElementById('signInBtn').focus();
+}
+</script>
+</body>
+</html>

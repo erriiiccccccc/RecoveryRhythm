@@ -1,0 +1,17 @@
+# Build output
+target/
+
+# IDE/editor files
+.idea/
+.vscode/
+
+# Local agent/project config
+.claude/
+
+# OS/log noise
+.DS_Store
+Thumbs.db
+*.log
+
+# Temp or accidental local file
+nul
