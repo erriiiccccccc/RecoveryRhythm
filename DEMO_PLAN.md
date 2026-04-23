@@ -41,6 +41,14 @@ curl -s -X POST "http://localhost:8080/api/users/00000000-0000-0000-0000-0000000
 
 For each signal type, a “yes” counts in risk when the day is **fully verified** *or* there is **≥1** `APPROVED` evidence for that type on that log (`RiskEngine.isEffectiveClaim`). **Pending** uploads do not validate the claim. Approve in **Evidence review queue** before you trust the score.
 
+### 3b) Why the score sometimes “doesn’t move” (or didn’t, before tuning)
+
+- **Previous number is replaced** — each run total is **recalculated from 0**, not “old score + bad day”.  
+- **No baseline** — “vs baseline” factors are skipped until `POST .../baseline/recalculate` has run at least once with enough logs.  
+- **Only last 7 real days** — bad days must use **log dates** inside that window.  
+- **Two rough days** — rate drops use your **last 5 logs** in that window; if the other three days were perfect, a 2-day dip may barely move the **percentage** (now rate factors use **≥** thresholds so edge cases count). **Activity** previously needed **3** straight miss days; it now scores from **2** consecutive miss days (see `RiskEngine`).  
+- **Reliable demo jump:** schedule an appointment **Yes** → **did not attend** (+12 each, cap 24), and/or **no activity** two days in a row with **baseline** present, then **Run Assessment**.
+
 ### 4) “Re-engagement bonus” uses **real yesterday**
 
 `RiskEngine` looks for a log on **`LocalDate.now().minusDays(1)`** (real calendar), not your narrative “Day 4”. A pure backdated demo may never trigger that bonus. Say *“in production, yesterday’s engagement would…”* if asked.

@@ -113,7 +113,9 @@ patient.html / clinician.html
 **Implication for demos:** the **date picker** simulates a calendar day, but the engine’s **inclusion in the 7-day window** is always measured against the **real system clock** (`LocalDate.now()`). Logs dated **earlier than seven days before today** are **excluded** from the next assessment. See [DEMO_PLAN.md](DEMO_PLAN.md).
 
 **Representative factors** (non-exhaustive; see `RiskEngine` for the full set):  
-morning / medication / meal / evening **rate drop vs baseline**, **activity miss streak** (effective activity), **sleep timing drift** vs baseline average, **missed scheduled appointments**, **multi-signal synergy** (extra weight when 3+ positive-impact factors are present), **re-engagement bonus** (negative, when **yesterday**’s log was fully engaged with **effective** claims), **denied evidence** penalty.
+morning / medication / meal / evening **rate drop vs baseline** (percentage-point thresholds are **moderately tight** — e.g. morning ≥22pp, medication ≥12pp, meals ≥18pp, evening ≥22pp), **activity absence streak** from the **most recent** log-days backward (≥2 days without effective activity; stronger at ≥3 / ≥5), **sleep timing drift** if average sleep shifts **&gt;1.5h** from baseline, **missed appointments** (12 per miss, cap 24), **multi-signal synergy** (+7 when **≥2** primary factors are present), **re-engagement bonus** (negative), **denied evidence** penalty.
+
+Each **Run Assessment** recomputes **`totalScore` from scratch** from these factors — it does **not** add on top of the previous number. The **25–44** “DRIFTING” band is only a **label** for whatever total the engine produced last time.
 
 `totalScore` is clamped to **0–100**.
 

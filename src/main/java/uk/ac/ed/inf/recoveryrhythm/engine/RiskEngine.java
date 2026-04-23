@@ -34,14 +34,14 @@ import java.util.stream.Collectors;
  *   10. Publish Kafka events.
  *
  * FACTOR SCORING:
- *   morning_checkin_drop        : baseline vs recent 5d rate drop > 30pp   → +15
- *   medication_adherence_drop   : baseline vs recent 7d rate drop > 20pp   → +20
- *   activity_absence_streak     : 3 consecutive days no activity            → +20 (5d → +25)
- *   meal_logging_decline        : baseline vs recent 5d rate drop > 25pp   → +10
- *   sleep_drift_later           : recent avg sleep hour vs baseline > +2h   → +10
- *   appointment_miss            : any missed scheduled appointment           → +15 per miss (max 30)
- *   evening_checkin_decline     : baseline vs recent 5d rate drop > 30pp   → +10
- *   multi_signal_synergy        : 3+ factors active simultaneously          → +10
+ *   morning_checkin_drop        : baseline vs recent 5d rate drop ≥ 22pp  → +15 (drop > 45pp → +20)
+ *   medication_adherence_drop   : baseline vs recent 7d rate drop ≥ 12pp  → +18 (drop > 32pp → +23)
+ *   activity_absence_streak     : 2+ consecutive log-days no activity       → +16 / +21 (≥3) / +26 (≥5d)
+ *   meal_logging_decline        : baseline vs recent 5d rate drop ≥ 18pp  → +11
+ *   sleep_drift_later           : recent avg sleep hour vs baseline |Δ| > 1.5h → +10 (|Δ| > 2.5h → +14)
+ *   appointment_miss            : any missed scheduled appointment          → +12 per miss (max 24)
+ *   evening_checkin_decline     : baseline vs recent 5d rate drop ≥ 22pp  → +10
+ *   multi_signal_synergy        : 2+ factors active simultaneously        → +7 (extra when pattern compounds)
  *   re_engagement_bonus         : all signals completed yesterday            → -10
  */
 @Component
@@ -97,14 +97,14 @@ public class RiskEngine {
             double baselineMorning = baseline.getMorningCheckInRate();
             double recentMorning = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MORNING_CHECKIN, DailySignalLog::isMorningCheckInCompleted));
             double drop = baselineMorning - recentMorning;
-            if (drop > 0.30) {
-                int impact = drop > 0.50 ? 20 : 15;
+            if (drop >= 0.22) {
+                int impact = drop > 0.45 ? 20 : 15;
                 factors.add(ContributingFactor.builder()
                         .factor("morning_checkin_drop")
                         .impact(impact)
                         .details(String.format("%.0f%% → %.0f%% (−%.0f pp vs baseline)",
                                 baselineMorning * 100, recentMorning * 100, drop * 100))
-                        .severity(drop > 0.50 ? "HIGH" : "MEDIUM")
+                        .severity(drop > 0.45 ? "HIGH" : "MEDIUM")
                         .build());
                 totalScore += impact;
             }
@@ -115,14 +115,14 @@ public class RiskEngine {
             double baselineMed = baseline.getMedicationAdherenceRate();
             double recentMed = rate(recentLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MEDICATION, DailySignalLog::isMedicationTaken));
             double drop = baselineMed - recentMed;
-            if (drop > 0.20) {
-                int impact = drop > 0.40 ? 25 : 20;
+            if (drop >= 0.12) {
+                int impact = drop > 0.32 ? 23 : 18;
                 factors.add(ContributingFactor.builder()
                         .factor("medication_adherence_drop")
                         .impact(impact)
                         .details(String.format("%.0f%% → %.0f%% (−%.0f pp vs baseline)",
                                 baselineMed * 100, recentMed * 100, drop * 100))
-                        .severity(drop > 0.40 ? "HIGH" : "MEDIUM")
+                        .severity(drop > 0.32 ? "HIGH" : "MEDIUM")
                         .build());
                 totalScore += impact;
             }
@@ -130,12 +130,12 @@ public class RiskEngine {
 
         // ── Factor 3: Activity absence streak ────────────────────────────────
         int activityStreak = computeEffectiveActivityMissStreak(recentLogs);
-        if (activityStreak >= 3) {
-            int impact = activityStreak >= 5 ? 25 : 20;
+        if (activityStreak >= 2) {
+            int impact = activityStreak >= 5 ? 26 : (activityStreak >= 3 ? 21 : 16);
             factors.add(ContributingFactor.builder()
                     .factor("activity_absence_streak")
                     .impact(impact)
-                    .details(activityStreak + " consecutive days without any activity")
+                    .details(activityStreak + " consecutive log days without any activity (most recent first)")
                     .severity(activityStreak >= 5 ? "HIGH" : "MEDIUM")
                     .build());
             totalScore += impact;
@@ -146,15 +146,15 @@ public class RiskEngine {
             double baselineMeal = baseline.getMealLoggingRate();
             double recentMeal = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MEAL, DailySignalLog::isMealLogged));
             double drop = baselineMeal - recentMeal;
-            if (drop > 0.25) {
+            if (drop >= 0.18) {
                 factors.add(ContributingFactor.builder()
                         .factor("meal_logging_decline")
-                        .impact(10)
+                        .impact(11)
                         .details(String.format("%.0f%% → %.0f%% (−%.0f pp vs baseline)",
                                 baselineMeal * 100, recentMeal * 100, drop * 100))
                         .severity("MEDIUM")
                         .build());
-                totalScore += 10;
+                totalScore += 11;
             }
         }
 
@@ -167,16 +167,16 @@ public class RiskEngine {
 
             if (recentSleepOpt.isPresent()) {
                 double drift = recentSleepOpt.getAsDouble() - baseline.getAverageSleepStartHour();
-                if (Math.abs(drift) > 2.0) {
+                if (Math.abs(drift) > 1.5) {
                     String direction = drift > 0 ? "later" : "earlier";
-                    int impact = Math.abs(drift) > 3.0 ? 15 : 10;
+                    int impact = Math.abs(drift) > 2.5 ? 14 : 10;
                     factors.add(ContributingFactor.builder()
                             .factor("sleep_timing_drift")
                             .impact(impact)
                             .details(String.format("Sleep shifted %.1fh %s vs baseline (%.0fh avg vs %.0fh baseline)",
                                     Math.abs(drift), direction,
                                     recentSleepOpt.getAsDouble(), baseline.getAverageSleepStartHour()))
-                            .severity(Math.abs(drift) > 3.0 ? "HIGH" : "MEDIUM")
+                            .severity(Math.abs(drift) > 2.5 ? "HIGH" : "MEDIUM")
                             .build());
                     totalScore += impact;
                 }
@@ -188,7 +188,7 @@ public class RiskEngine {
                 .filter(s -> s.isAppointmentScheduled() && !s.isAppointmentAttended())
                 .count();
         if (missedAppointments > 0) {
-            int impact = (int) Math.min(missedAppointments * 15, 30);
+            int impact = (int) Math.min(missedAppointments * 12, 24);
             factors.add(ContributingFactor.builder()
                     .factor("appointment_miss")
                     .impact(impact)
@@ -203,7 +203,7 @@ public class RiskEngine {
             double baselineEvening = baseline.getEveningCheckInRate();
             double recentEvening = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.EVENING_CHECKIN, DailySignalLog::isEveningCheckInCompleted));
             double drop = baselineEvening - recentEvening;
-            if (drop > 0.30) {
+            if (drop >= 0.22) {
                 factors.add(ContributingFactor.builder()
                         .factor("evening_checkin_decline")
                         .impact(10)
@@ -216,14 +216,14 @@ public class RiskEngine {
         }
 
         // ── Factor 8: Multi-signal synergy bonus ─────────────────────────────
-        if (factors.size() >= 3) {
+        if (factors.size() >= 2) {
             factors.add(ContributingFactor.builder()
                     .factor("multi_signal_synergy")
-                    .impact(10)
+                    .impact(7)
                     .details(factors.size() + " concurrent risk indicators — combined pattern elevates concern")
                     .severity("HIGH")
                     .build());
-            totalScore += 10;
+            totalScore += 7;
         }
 
         // ── Factor 10: Denied evidence in recent window ──────────────────────
