@@ -917,7 +917,7 @@ async function submitCheckIn() {
 function hasAnyNewSignalForDate() {
   const hasNewCoreSignal = Object.keys(SIGNAL_META).some((field) => formState[field] && !lockedSignals.has(field));
   if (hasNewCoreSignal) return true;
-  if (!existingForDate) return false;
+  if (!existingForDate) return true;
   const sleepVal = document.getElementById('sleepHour').value;
   const nextSleep = sleepVal !== '' ? parseInt(sleepVal) : null;
   const nextNotes = buildFinalNotes();

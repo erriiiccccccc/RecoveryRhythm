@@ -654,6 +654,99 @@
   }
   .verification-alert-btn:hover { border-color: rgba(255,170,0,0.65); color: #ffe0ad; }
 
+  /* ── Urgent Welfare Tray ── */
+  .urgent-tray {
+    display: none; margin: 8px 10px 0;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid rgba(255,71,87,0.5);
+    background: rgba(255,71,87,0.04);
+    overflow: hidden;
+    animation: trayPulse 3s ease-in-out infinite;
+  }
+  .tray-header {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 10px;
+    background: rgba(255,71,87,0.12);
+    border-bottom: 1px solid rgba(255,71,87,0.28);
+    font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--acute);
+  }
+  .tray-count {
+    margin-left: auto; background: rgba(255,71,87,0.22);
+    border-radius: 100px; padding: 1px 7px;
+    font-size: 0.62rem; color: var(--acute);
+  }
+  .tray-item {
+    padding: 8px 10px; cursor: pointer;
+    border-bottom: 1px solid rgba(111,110,106,0.14);
+    transition: background var(--t);
+  }
+  .tray-item:last-child { border-bottom: none; }
+  .tray-item:hover { background: rgba(255,71,87,0.07); }
+  .tray-item.tray-ok:hover { background: rgba(46,213,115,0.05); }
+  .tray-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .tray-name { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+  .tray-score { font-size: 0.62rem; color: var(--muted); }
+  .tray-status { font-size: 0.69rem; margin-bottom: 3px; }
+  .tray-footer { display: flex; justify-content: space-between; align-items: center; }
+  .tray-time { font-size: 0.6rem; color: var(--muted); }
+  .tray-resolve {
+    background: none; border: 1px solid rgba(111,110,106,0.3);
+    color: var(--muted); font-size: 0.6rem; font-weight: 700;
+    padding: 2px 7px; border-radius: 5px; cursor: pointer;
+    transition: all var(--t); font-family: inherit;
+  }
+  .tray-resolve:hover { border-color: var(--border-h); color: var(--text-dim); }
+  @keyframes trayPulse {
+    0%, 100% { border-color: rgba(255,71,87,0.5); box-shadow: none; }
+    50% { border-color: rgba(255,71,87,0.9); box-shadow: 0 0 10px rgba(255,71,87,0.18); }
+  }
+
+  /* ── Welfare Check Modal ── */
+  #welfareModal { z-index: 960; }
+  #welfareModal .modal-card {
+    max-width: 440px;
+    border: 1.5px solid rgba(255,71,87,0.42);
+  }
+  .welfare-modal-top {
+    margin: -18px -18px 16px;
+    padding: 13px 18px;
+    background: linear-gradient(135deg, rgba(255,71,87,0.16), rgba(255,107,53,0.09));
+    border-bottom: 1px solid rgba(255,71,87,0.3);
+    border-radius: var(--radius) var(--radius) 0 0;
+    display: flex; align-items: center; gap: 11px;
+  }
+  .welfare-modal-icon { font-size: 1.5rem; flex-shrink: 0; }
+  .welfare-modal-title { font-size: 0.95rem; font-weight: 800; color: var(--acute); }
+  .welfare-modal-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+  .welfare-patient-box {
+    background: rgba(255,71,87,0.06); border: 1px solid rgba(255,71,87,0.2);
+    border-radius: var(--radius-sm); padding: 10px 13px; margin-bottom: 14px;
+  }
+  .welfare-patient-box .wp-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+  .welfare-patient-box .wp-meta { font-size: 0.71rem; color: var(--muted); margin-top: 2px; }
+  .welfare-question { font-size: 0.82rem; font-weight: 600; color: var(--text-dim); margin-bottom: 10px; }
+  .welfare-options { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+  .welfare-opt {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 13px; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; transition: all var(--t); font-family: inherit; text-align: left;
+    width: 100%;
+  }
+  .welfare-opt:hover { border-color: var(--border-h); color: var(--text); background: var(--surface-h); }
+  .welfare-opt.active { border-color: rgba(229,230,250,0.5); color: var(--text); background: rgba(229,230,250,0.07); }
+  .welfare-opt .opt-icon { font-size: 1.05rem; flex-shrink: 0; }
+  .welfare-opt .opt-label { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
+  .welfare-opt .opt-sub { font-size: 0.67rem; font-weight: 400; color: var(--muted); margin-top: 1px; }
+  .welfare-opt.opt-bad { border-color: rgba(255,71,87,0.28); color: #ff7b8a; background: rgba(255,71,87,0.05); }
+  .welfare-opt.opt-bad.active { border-color: rgba(255,71,87,0.65); background: rgba(255,71,87,0.1); }
+  .welfare-opt.opt-warn { border-color: rgba(255,170,0,0.28); color: #ffcc80; background: rgba(255,170,0,0.05); }
+  .welfare-opt.opt-warn.active { border-color: rgba(255,170,0,0.65); background: rgba(255,170,0,0.12); }
+  .welfare-opt.opt-ok { border-color: rgba(46,213,115,0.28); color: var(--stable); background: rgba(46,213,115,0.05); }
+  .welfare-opt.opt-ok.active { border-color: rgba(46,213,115,0.65); background: rgba(46,213,115,0.1); }
+
   /* ── Animations ── */
   @keyframes fadeUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
@@ -701,6 +794,7 @@
       <div class="sidebar-sub" id="patientCount">Loading…</div>
       <button class="btn-add-patient" onclick="openAddPatientModal()">+ Add Patient</button>
     </div>
+    <div id="urgentTray" class="urgent-tray"></div>
     <div class="patient-list" id="patientList">
       <div class="loading" style="padding:40px 16px">
         <div class="spinner"></div> Loading patients…
@@ -963,6 +1057,47 @@
   </div>
 </div>
 
+<!-- ── Welfare Check Modal (auto-fires on ACUTE_RISK) ── -->
+<div class="modal-backdrop" id="welfareModal">
+  <div class="modal-card">
+    <div class="welfare-modal-top">
+      <span class="welfare-modal-icon">🚨</span>
+      <div>
+        <div class="welfare-modal-title">ACUTE RISK — Welfare Check</div>
+        <div class="welfare-modal-sub">Immediate action documentation required</div>
+      </div>
+    </div>
+    <div class="welfare-patient-box">
+      <div class="wp-name" id="welfarePatientLabel">—</div>
+      <div class="wp-meta">Current state: ACUTE RISK &mdash; personnel dispatch required</div>
+    </div>
+    <div class="welfare-question">Have you dispatched personnel to check on this patient?</div>
+    <div class="welfare-options">
+      <button class="welfare-opt opt-bad" data-status="NOT_DISPATCHED" onclick="selectWelfareStatus('NOT_DISPATCHED')">
+        <span class="opt-icon">⚠️</span>
+        <div><div class="opt-label">Not dispatched yet</div><div class="opt-sub">No welfare check sent</div></div>
+      </button>
+      <button class="welfare-opt opt-warn" data-status="DISPATCHED_EN_ROUTE" onclick="selectWelfareStatus('DISPATCHED_EN_ROUTE')">
+        <span class="opt-icon">🚑</span>
+        <div><div class="opt-label">Dispatched — not yet arrived</div><div class="opt-sub">Personnel sent, en route to patient</div></div>
+      </button>
+      <button class="welfare-opt opt-warn" data-status="INCOMING" onclick="selectWelfareStatus('INCOMING')">
+        <span class="opt-icon">🔄</span>
+        <div><div class="opt-label">Incoming / on the way</div><div class="opt-sub">Welfare check in progress</div></div>
+      </button>
+      <button class="welfare-opt opt-ok" data-status="DISPATCHED_ARRIVED_CHECKED" onclick="selectWelfareStatus('DISPATCHED_ARRIVED_CHECKED')">
+        <span class="opt-icon">✅</span>
+        <div><div class="opt-label">Dispatched, arrived &amp; checked in</div><div class="opt-sub">Patient has been seen by personnel</div></div>
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal" onclick="closeWelfareModal()">Later — stays in tray</button>
+      <button class="btn-modal primary" onclick="closeWelfareModal()">Confirm &amp; Close</button>
+    </div>
+    <div class="modal-note">Status is tracked in the urgent welfare tray (sidebar) for this session. Patient remains flagged until you click Resolve in the tray.</div>
+  </div>
+</div>
+
 <script>
 // ── Auth ─────────────────────────────────────────────────────────────
 const session = JSON.parse(sessionStorage.getItem('rr_session') || 'null');
@@ -1017,6 +1152,7 @@ function renderPatientList(users) {
       <span class="patient-state-pill pill-${state}">${stateLabel}</span>
     </div>`;
   }).join('');
+  detectAcuteRiskFromList(users);
 }
 
 // ── Select patient ────────────────────────────────────────────────────
@@ -1124,6 +1260,7 @@ function render(d) {
   renderEscalations(d.latestEscalations || []);
   renderEvidenceQueue();
   document.getElementById('daysCount').textContent = d.loggedDaysCount ?? d.daysSinceRecoveryStart ?? '—';
+  if (d.currentState === 'ACUTE_RISK') detectAcuteRisk(selectedUserId, d.displayName, d.currentRiskScore);
 }
 
 function renderReentry(d) {
@@ -1592,6 +1729,117 @@ function openEvidencePreview(src) {
 
 function closeEvidencePreview() {
   document.getElementById('evidencePreviewModal').classList.remove('show');
+}
+
+// ── Welfare Check (Acute Risk) ────────────────────────────────────────
+const WELFARE_META = {
+  PENDING:                    { label: 'Unacknowledged',         color: '#ff4757', icon: '🚨' },
+  NOT_DISPATCHED:             { label: 'Not dispatched',         color: '#ff4757', icon: '⚠️' },
+  DISPATCHED_EN_ROUTE:        { label: 'Dispatched — en route',  color: '#ffaa00', icon: '🚑' },
+  INCOMING:                   { label: 'Incoming',               color: '#ffaa00', icon: '🔄' },
+  DISPATCHED_ARRIVED_CHECKED: { label: 'Arrived & checked in',   color: '#2ed573', icon: '✅' }
+};
+
+function getWelfareChecks() {
+  try { return JSON.parse(sessionStorage.getItem('rr_welfare') || '{}'); } catch { return {}; }
+}
+function saveWelfareChecks(c) { sessionStorage.setItem('rr_welfare', JSON.stringify(c)); }
+
+let welfareModalUid  = null;
+let welfareModalName = null;
+
+function detectAcuteRisk(uid, name, score) {
+  if (!uid) return;
+  const checks = getWelfareChecks();
+  if (!checks[uid]) {
+    checks[uid] = { status: 'PENDING', patientName: name, riskScore: score, updatedAt: new Date().toISOString(), prompted: false };
+    saveWelfareChecks(checks);
+  } else {
+    checks[uid].patientName = name;
+    checks[uid].riskScore   = score;
+    saveWelfareChecks(checks);
+  }
+  renderUrgentTray();
+  const c = getWelfareChecks()[uid];
+  if (c && !c.prompted) openWelfareModal(uid, name, score);
+}
+
+function detectAcuteRiskFromList(users) {
+  let firstNew = null;
+  const checks = getWelfareChecks();
+  users.forEach(u => {
+    if (u.currentState === 'ACUTE_RISK' && !checks[u.id]) {
+      checks[u.id] = { status: 'PENDING', patientName: u.displayName, riskScore: u.currentRiskScore || 0, updatedAt: new Date().toISOString(), prompted: false };
+      if (!firstNew) firstNew = u;
+    }
+  });
+  saveWelfareChecks(checks);
+  renderUrgentTray();
+  if (firstNew) setTimeout(() => openWelfareModal(firstNew.id, firstNew.displayName, firstNew.currentRiskScore || 0), 700);
+}
+
+function openWelfareModal(uid, name, score) {
+  welfareModalUid  = uid;
+  welfareModalName = name;
+  const checks = getWelfareChecks();
+  if (checks[uid]) { checks[uid].prompted = true; saveWelfareChecks(checks); }
+  document.getElementById('welfarePatientLabel').textContent = name + ' — Score ' + (score ?? '—');
+  const current = (checks[uid] || {}).status || 'PENDING';
+  document.querySelectorAll('.welfare-opt').forEach(b => b.classList.toggle('active', b.dataset.status === current));
+  document.getElementById('welfareModal').classList.add('show');
+}
+
+function closeWelfareModal() {
+  document.getElementById('welfareModal').classList.remove('show');
+  welfareModalUid = welfareModalName = null;
+}
+
+function selectWelfareStatus(status) {
+  if (!welfareModalUid) return;
+  const checks = getWelfareChecks();
+  if (checks[welfareModalUid]) {
+    checks[welfareModalUid].status    = status;
+    checks[welfareModalUid].updatedAt = new Date().toISOString();
+    saveWelfareChecks(checks);
+  }
+  document.querySelectorAll('.welfare-opt').forEach(b => b.classList.toggle('active', b.dataset.status === status));
+  renderUrgentTray();
+}
+
+function resolveWelfare(uid) {
+  const checks = getWelfareChecks();
+  delete checks[uid];
+  saveWelfareChecks(checks);
+  renderUrgentTray();
+}
+
+function handleTrayClick(uid, name, score) {
+  selectPatient(uid);
+  openWelfareModal(uid, name, score);
+}
+
+function renderUrgentTray() {
+  const tray = document.getElementById('urgentTray');
+  if (!tray) return;
+  const checks  = getWelfareChecks();
+  const entries = Object.entries(checks);
+  if (!entries.length) { tray.style.display = 'none'; return; }
+  tray.style.display = 'block';
+  tray.innerHTML = `<div class="tray-header"><span>🚨</span><span>ACUTE RISK — WELFARE</span><span class="tray-count">${entries.length}</span></div>` +
+    entries.map(([uid, c]) => {
+      const m    = WELFARE_META[c.status] || WELFARE_META.PENDING;
+      const isOk = c.status === 'DISPATCHED_ARRIVED_CHECKED';
+      const time = new Date(c.updatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const safe = (c.patientName || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return `<div class="tray-item${isOk ? ' tray-ok' : ''}" onclick="handleTrayClick('${uid}','${safe}',${c.riskScore || 0})">
+        <div class="tray-row"><span class="tray-name">${c.patientName}</span><span class="tray-score">Score ${c.riskScore}</span></div>
+        <div class="tray-status" style="color:${m.color}">${m.icon} ${m.label}</div>
+        <div class="tray-footer">
+          <span class="tray-time">Updated ${time}</span>
+          <button class="tray-resolve" onclick="event.stopPropagation();resolveWelfare('${uid}')">Resolve</button>
+        </div>
+      </div>`;
+    }).join('');
 }
 </script>
 </body>

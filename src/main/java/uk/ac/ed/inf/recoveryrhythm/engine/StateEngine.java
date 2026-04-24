@@ -11,9 +11,9 @@ import java.util.List;
  *
  * Score thresholds:
  *   0–24  → STABLE
- *   25–44 → DRIFTING
- *   45–69 → CONCERNING
- *   70–100 → ACUTE_RISK
+ *   25–49 → DRIFTING
+ *   50–79 → CONCERNING
+ *   80–100 → ACUTE_RISK
  *
  * RECOVERING override: if the previous state was CONCERNING or ACUTE_RISK
  * and the current score has dropped to DRIFTING range with a consistent
@@ -37,8 +37,8 @@ public class StateEngine {
 
     public RecoveryState fromScore(int score) {
         if (score < 25)  return RecoveryState.STABLE;
-        if (score < 45)  return RecoveryState.DRIFTING;
-        if (score < 70)  return RecoveryState.CONCERNING;
+        if (score < 50)  return RecoveryState.DRIFTING;
+        if (score < 80)  return RecoveryState.CONCERNING;
         return RecoveryState.ACUTE_RISK;
     }
 

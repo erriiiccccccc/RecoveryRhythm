@@ -34,14 +34,14 @@ import java.util.stream.Collectors;
  *   10. Publish Kafka events.
  *
  * FACTOR SCORING:
- *   morning_checkin_drop        : baseline vs recent 5d rate drop ≥ 22pp  → +15 (drop > 45pp → +20)
- *   medication_adherence_drop   : baseline vs recent 7d rate drop ≥ 12pp  → +18 (drop > 32pp → +23)
- *   activity_absence_streak     : 2+ consecutive log-days no activity       → +16 / +21 (≥3) / +26 (≥5d)
- *   meal_logging_decline        : baseline vs recent 5d rate drop ≥ 18pp  → +11
- *   sleep_drift_later           : recent avg sleep hour vs baseline |Δ| > 1.5h → +10 (|Δ| > 2.5h → +14)
- *   appointment_miss            : any missed scheduled appointment          → +12 per miss (max 24)
- *   evening_checkin_decline     : baseline vs recent 5d rate drop ≥ 22pp  → +10
- *   multi_signal_synergy        : 2+ factors active simultaneously        → +7 (extra when pattern compounds)
+ *   morning_checkin_drop        : baseline vs recent 5d rate drop ≥ 22pp  → +12 (drop > 45pp → +16)
+ *   medication_adherence_drop   : baseline vs recent 7d rate drop ≥ 12pp  → +15 (drop > 32pp → +20)
+ *   activity_absence_streak     : 2+ consecutive log-days no activity       → +13 / +18 (≥3) / +22 (≥5d)
+ *   meal_logging_decline        : baseline vs recent 5d rate drop ≥ 18pp  → +9
+ *   sleep_drift_later           : recent avg sleep hour vs baseline |Δ| > 1.5h → +8 (|Δ| > 2.5h → +12)
+ *   appointment_miss            : any missed scheduled appointment          → +10 per miss (max 20)
+ *   evening_checkin_decline     : baseline vs recent 5d rate drop ≥ 22pp  → +9
+ *   multi_signal_synergy        : 2+ factors active simultaneously        → +6
  *   re_engagement_bonus         : all signals completed yesterday            → -10
  */
 @Component
@@ -52,6 +52,7 @@ public class RiskEngine {
     private final DailySignalLogRepository signalRepo;
     private final SignalEvidenceRepository evidenceRepo;
     private final BaselineSnapshotRepository baselineRepo;
+    private final BaselineEngine baselineEngine;
     private final RiskAssessmentRepository assessmentRepo;
     private final StateEngine stateEngine;
     private final EpisodeService episodeService;
@@ -75,10 +76,14 @@ public class RiskEngine {
         Optional<BaselineSnapshot> baselineOpt = baselineRepo.findByUserAndActiveTrue(user);
 
         if (baselineOpt.isEmpty()) {
-            log.warn("[RiskEngine] No baseline for user {}, scoring with defaults", user.getDisplayName());
+            log.info("[RiskEngine] No baseline for user {}, auto-computing from recovery start", user.getDisplayName());
+            baselineRepo.deactivateAllForUser(user);
+            BaselineSnapshot autoBaseline = baselineEngine.calculate(user);
+            autoBaseline.setActive(true);
+            baselineOpt = Optional.of(baselineRepo.save(autoBaseline));
         }
 
-        BaselineSnapshot baseline = baselineOpt.orElse(null);
+        BaselineSnapshot baseline = baselineOpt.get();
 
         LocalDate windowStart = LocalDate.now().minusDays(assessmentWindowDays);
         List<DailySignalLog> recentLogs = signalRepo
@@ -98,7 +103,7 @@ public class RiskEngine {
             double recentMorning = rate(shortWindowLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MORNING_CHECKIN, DailySignalLog::isMorningCheckInCompleted));
             double drop = baselineMorning - recentMorning;
             if (drop >= 0.22) {
-                int impact = drop > 0.45 ? 20 : 15;
+                int impact = drop > 0.45 ? 16 : 12;
                 factors.add(ContributingFactor.builder()
                         .factor("morning_checkin_drop")
                         .impact(impact)
@@ -116,7 +121,7 @@ public class RiskEngine {
             double recentMed = rate(recentLogs, log -> isEffectiveClaim(log, EvidenceSignalType.MEDICATION, DailySignalLog::isMedicationTaken));
             double drop = baselineMed - recentMed;
             if (drop >= 0.12) {
-                int impact = drop > 0.32 ? 23 : 18;
+                int impact = drop > 0.32 ? 20 : 15;
                 factors.add(ContributingFactor.builder()
                         .factor("medication_adherence_drop")
                         .impact(impact)
@@ -131,7 +136,7 @@ public class RiskEngine {
         // ── Factor 3: Activity absence streak ────────────────────────────────
         int activityStreak = computeEffectiveActivityMissStreak(recentLogs);
         if (activityStreak >= 2) {
-            int impact = activityStreak >= 5 ? 26 : (activityStreak >= 3 ? 21 : 16);
+            int impact = activityStreak >= 5 ? 22 : (activityStreak >= 3 ? 18 : 13);
             factors.add(ContributingFactor.builder()
                     .factor("activity_absence_streak")
                     .impact(impact)
@@ -149,12 +154,12 @@ public class RiskEngine {
             if (drop >= 0.18) {
                 factors.add(ContributingFactor.builder()
                         .factor("meal_logging_decline")
-                        .impact(11)
+                        .impact(9)
                         .details(String.format("%.0f%% → %.0f%% (−%.0f pp vs baseline)",
                                 baselineMeal * 100, recentMeal * 100, drop * 100))
                         .severity("MEDIUM")
                         .build());
-                totalScore += 11;
+                totalScore += 9;
             }
         }
 
@@ -169,7 +174,7 @@ public class RiskEngine {
                 double drift = recentSleepOpt.getAsDouble() - baseline.getAverageSleepStartHour();
                 if (Math.abs(drift) > 1.5) {
                     String direction = drift > 0 ? "later" : "earlier";
-                    int impact = Math.abs(drift) > 2.5 ? 14 : 10;
+                    int impact = Math.abs(drift) > 2.5 ? 12 : 8;
                     factors.add(ContributingFactor.builder()
                             .factor("sleep_timing_drift")
                             .impact(impact)
@@ -188,7 +193,7 @@ public class RiskEngine {
                 .filter(s -> s.isAppointmentScheduled() && !s.isAppointmentAttended())
                 .count();
         if (missedAppointments > 0) {
-            int impact = (int) Math.min(missedAppointments * 12, 24);
+            int impact = (int) Math.min(missedAppointments * 10, 20);
             factors.add(ContributingFactor.builder()
                     .factor("appointment_miss")
                     .impact(impact)
@@ -206,12 +211,12 @@ public class RiskEngine {
             if (drop >= 0.22) {
                 factors.add(ContributingFactor.builder()
                         .factor("evening_checkin_decline")
-                        .impact(10)
+                        .impact(9)
                         .details(String.format("%.0f%% → %.0f%% (−%.0f pp vs baseline)",
                                 baselineEvening * 100, recentEvening * 100, drop * 100))
                         .severity("LOW")
                         .build());
-                totalScore += 10;
+                totalScore += 9;
             }
         }
 
@@ -219,18 +224,18 @@ public class RiskEngine {
         if (factors.size() >= 2) {
             factors.add(ContributingFactor.builder()
                     .factor("multi_signal_synergy")
-                    .impact(7)
+                    .impact(6)
                     .details(factors.size() + " concurrent risk indicators — combined pattern elevates concern")
                     .severity("HIGH")
                     .build());
-            totalScore += 7;
+            totalScore += 6;
         }
 
         // ── Factor 10: Denied evidence in recent window ──────────────────────
         long deniedEvidenceCount = evidenceRepo.countByUserAndStatusAndDailySignalLog_LogDateBetween(
                 user, VerificationStatus.DENIED, windowStart, LocalDate.now());
         if (deniedEvidenceCount > 0) {
-            int impact = deniedEvidenceCount >= 3 ? 15 : 10;
+            int impact = deniedEvidenceCount >= 3 ? 12 : 8;
             factors.add(ContributingFactor.builder()
                     .factor("denied_evidence_claims")
                     .impact(impact)
@@ -421,11 +426,7 @@ public class RiskEngine {
                 && isEffectiveClaim(log, EvidenceSignalType.EVENING_CHECKIN, DailySignalLog::isEveningCheckInCompleted);
     }
 
-    /**
-     * A checked-in signal only contributes to risk rates after verification:
-     * either the day is fully verified, or this signal type has APPROVED evidence.
-     * Pending evidence does not count as an effective (verified) claim.
-     */
+    // Claim counts by default (patient is trusted on submission); only excluded if clinician explicitly denies.
     private boolean isEffectiveClaim(
             DailySignalLog log,
             EvidenceSignalType signalType,
@@ -434,11 +435,7 @@ public class RiskEngine {
         if (!claimPredicate.test(log)) {
             return false;
         }
-        if (log.getVerificationState() == DailyVerificationState.VERIFIED) {
-            return true;
-        }
-        long approved = evidenceRepo.countByDailySignalLogAndSignalTypeAndStatus(log, signalType, VerificationStatus.APPROVED);
-        return approved > 0;
+        return !evidenceRepo.existsByDailySignalLogAndSignalTypeAndStatus(log, signalType, VerificationStatus.DENIED);
     }
 
     private int computeEffectiveActivityMissStreak(List<DailySignalLog> logs) {
